@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.5.0](https://github.com/eqasim-org/eqasim-france/compare/v1.4.0...v1.5.0) (2026-04-17)
+
+
+### Features
+
+* add motorcycles ([#384](https://github.com/eqasim-org/eqasim-france/issues/384)) ([5f1796b](https://github.com/eqasim-org/eqasim-france/commit/5f1796ba0b10d9fa973c7b8338ab54caecdb9004))
+* add output generation for primary and secondary locations ([#390](https://github.com/eqasim-org/eqasim-france/issues/390)) ([d78e8f9](https://github.com/eqasim-org/eqasim-france/commit/d78e8f9b9b1302124dd17ad8c76b50c71ff4e775))
+* add support for HTS import with MobiSurvStd ([#346](https://github.com/eqasim-org/eqasim-france/issues/346)) ([5cd2196](https://github.com/eqasim-org/eqasim-france/commit/5cd2196051375b463417b51b1cc2e117c06b8d33))
+* force field in secondary location assignment ([#385](https://github.com/eqasim-org/eqasim-france/issues/385)) ([8cf5c6b](https://github.com/eqasim-org/eqasim-france/commit/8cf5c6b04063f9d3b347f84e261d1eceb86f6edb))
+* switching to uv for dependency management ([#498](https://github.com/eqasim-org/eqasim-france/issues/498)) ([da91635](https://github.com/eqasim-org/eqasim-france/commit/da9163545e33f1d4da37a2cdc39cb32e8492cdcd))
+* write legs when mode choice is active ([#480](https://github.com/eqasim-org/eqasim-france/issues/480)) ([81ec3fd](https://github.com/eqasim-org/eqasim-france/commit/81ec3fd66e0c8c59711169bf6459e355129d0e7d))
+
+
+### Bug Fixes
+
+* numerical errors in gtfs treatment and multinomial sampling for primary locations ([#447](https://github.com/eqasim-org/eqasim-france/issues/447)) ([61cbb7f](https://github.com/eqasim-org/eqasim-france/commit/61cbb7fbec9b8f38880adb9cca9cc7321512cf5f))
+* properly treat PCS2020 in census data ([#466](https://github.com/eqasim-org/eqasim-france/issues/466)) ([16a9f84](https://github.com/eqasim-org/eqasim-france/commit/16a9f843af23320df8fc1694b1f9868b637fd762))
+* read actual urban type with MobiSurvStd ([#485](https://github.com/eqasim-org/eqasim-france/issues/485)) ([dfce495](https://github.com/eqasim-org/eqasim-france/commit/dfce4957b27b93237d792e6405b67629558566e3))
+
 ## [1.4.0](https://github.com/eqasim-org/eqasim-france/compare/v1.3.0...v1.4.0) (2026-02-19)
 
 
