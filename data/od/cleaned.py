@@ -12,8 +12,7 @@ def configure(context):
 
 RENAME = { "COMMUNE" : "origin_id", "DCLT" : "destination_id", "IPONDI" : "weight", "DCETUF" : "destination_id" }
 
-def execute(context):
-    
+def execute(context):    
     
     # Load data
     df_work, df_education = context.stage("data.od.raw")
@@ -27,7 +26,7 @@ def execute(context):
     df_education.loc[~df_education["ARM"].str.contains("Z"), "origin_id"] = df_education["ARM"]
 
     # Verify spatial data for work
-    df_codes = context.stage("data.spatial.codes")
+    df_codes = context.stage("data.spatial.codes").copy()
 
     df_work["origin_id"] = df_work["origin_id"].astype("category")
     df_work["destination_id"] = df_work["destination_id"].astype("category")
@@ -37,7 +36,7 @@ def execute(context):
         raise RuntimeError("Found additional communes: %s" % excess_communes)
 
     # Verify spatial data for education
-    df_codes = context.stage("data.spatial.codes")
+    df_codes = context.stage("data.spatial.codes").copy()
 
     df_education["origin_id"] = df_education["origin_id"].astype("category")
     df_education["destination_id"] = df_education["destination_id"].astype("category")
@@ -55,9 +54,7 @@ def execute(context):
     df_work.loc[df_work["TRANS"] == 5, "commute_mode"] = "car"
     df_work.loc[df_work["TRANS"] == 6, "commute_mode"] = "pt"
     assert not np.any(df_work["commute_mode"] == "")
-    df_work["commute_mode"] = df_work["commute_mode"].astype("category")
-    
-    
+    df_work["commute_mode"] = df_work["commute_mode"].astype("category")    
 
     # Clean age range for education
     df_education["AGEREV10"] = df_education["AGEREV10"].astype(int)

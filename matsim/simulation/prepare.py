@@ -113,7 +113,8 @@ def execute(context):
 
     # Add urban attributes to population and network
     # (but only if Paris is included in the scenario!)
-    df_codes = context.stage("data.spatial.codes")
+    df_codes = context.stage("data.spatial.codes").copy()
+    df_codes = df_codes[df_codes["iris_id"]!="CH"]
 
     if "75" in df_codes["departement_id"].unique().astype(str):
         df_shape = context.stage("data.spatial.departments")[["departement_id", "geometry"]].rename(

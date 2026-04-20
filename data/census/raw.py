@@ -35,7 +35,8 @@ COLUMNS_DTYPES = {
 
 def execute(context):
     df_records = []
-    df_codes = context.stage("data.spatial.codes")
+    df_codes = context.stage("data.spatial.codes").copy()
+    df_codes = df_codes[df_codes["iris_id"]!="CH"]
 
     requested_departements = df_codes["departement_id"].unique()
 
@@ -43,8 +44,9 @@ def execute(context):
         parquet = pl.read_parquet( "{}/{}".format(context.config("data_path"), context.config("census_path")),
                         columns=  COLUMNS_DTYPES.keys())
         
-        parquet = parquet.cast(pl.String)
-        parquet = parquet.filter(pl.col("DEPT").is_in(requested_departements))
+        parquet  = parquet.cast(pl.String)
+        dpts_str = [str(dep) for dep in requested_departements]
+        parquet  = parquet.filter(pl.col("DEPT").is_in(dpts_str))
 
         progress.update(len(parquet))
                     

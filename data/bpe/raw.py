@@ -12,9 +12,9 @@ def configure(context):
     context.stage("data.spatial.codes")
 
 def execute(context):
-    df_records = []
+    df_codes = context.stage("data.spatial.codes").copy()
+    df_codes = df_codes[df_codes["iris_id"]!="CH"]
 
-    df_codes = context.stage("data.spatial.codes")
     requested_departements = df_codes["departement_id"].unique()
 
     with context.progress(label = "Reading BPE ...") as progress:
@@ -24,8 +24,9 @@ def execute(context):
                     ],
                 )
 
-        parquet = parquet.cast( dict(DEPCOM = str, DEP = str, DCIRIS = str))
-        parquet = parquet.filter(pl.col("DEP").is_in(requested_departements))
+        parquet  = parquet.cast( dict(DEPCOM = str, DEP = str, DCIRIS = str))
+        dpts_str = [str(dep) for dep in requested_departements]
+        parquet  = parquet.filter(pl.col("DEP").cast(pl.Utf8).is_in(dpts_str))
 
         progress.update(len(parquet))
 

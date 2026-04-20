@@ -13,7 +13,8 @@ def configure(context):
     context.config("filter_hts",True)
 def execute(context):
     filter_emp = context.config("filter_hts") 
-    df_codes = context.stage("data.spatial.codes")
+    df_codes = context.stage("data.spatial.codes").copy()
+    df_codes = df_codes[df_codes["iris_id"]!="CH"]
 
     df_households, df_persons, df_trips = context.stage("data.hts.emp.cleaned")
 

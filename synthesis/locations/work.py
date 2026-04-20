@@ -1,7 +1,4 @@
 import pandas as pd
-import tqdm
-import numpy as np
-import geopandas as gpd
 
 """
 This stage provides a list of work places that serve as potential locations for
@@ -12,43 +9,21 @@ place at their centroid to be in line with INSEE OD data.
 """
 
 def configure(context):
-    context.stage("data.sirene.localized")
-    context.stage("data.spatial.municipalities")
+    context.stage("synthesis.locations.work_FR")
+    context.config("generate_outbound_flows")
+
+    if context.config("generate_outbound_flows"):
+        context.stage("data.locations_CH.work")
+
 
 def execute(context):
-    df_workplaces = context.stage("data.sirene.localized")[[
-        "commune_id", "minimum_employees", "maximum_employees", "geometry"
-    ]].copy()
+    workplaces = context.stage("synthesis.locations.work_FR")
 
-    # Use minimum number of employees as weight
-    df_workplaces["employees"] = df_workplaces["minimum_employees"]
-    df_workplaces["fake"] = False
+    if context.config("generate_outbound_flows"):
+        workplaces_CH = context.stage("data.locations_CH.work")
+        workplaces    = pd.concat([workplaces, workplaces_CH])
 
-    ## Use centroids for municipalities where no work places exist
-    df_zones = context.stage("data.spatial.municipalities")
-    required_communes = set(df_zones["commune_id"].unique())
-    missing_communes = required_communes - set(df_workplaces["commune_id"].unique())
+    print(workplaces.head())
+    print(workplaces.tail())
 
-    if len(missing_communes) > 0:
-        print("Adding work places at the centroid of %d/%d communes without SIRENE observations" % (
-            len(missing_communes), len(required_communes)))
-
-        df_added = []
-
-        for commune_id in missing_communes:
-            centroid = df_zones[df_zones["commune_id"] == commune_id]["geometry"].centroid.iloc[0]
-
-            df_added.append({
-                "commune_id": commune_id, "employees": 1.0, "geometry": centroid,
-            })
-
-        df_added = gpd.GeoDataFrame(pd.DataFrame.from_records(df_added), crs = df_workplaces.crs)
-        df_added["fake"] = True
-
-        df_workplaces = pd.concat([df_workplaces, df_added])
-
-    # Add work identifier
-    df_workplaces["location_id"] = np.arange(len(df_workplaces))
-    df_workplaces["location_id"] = "work_" + df_workplaces["location_id"].astype(str)
-
-    return df_workplaces[["location_id", "commune_id", "employees", "fake", "geometry"]]
+    return workplaces

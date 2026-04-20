@@ -32,7 +32,7 @@ def execute(context):
         with io.BufferedWriter(writer, buffer_size = 2 * 1024**3) as writer:
             writer = writers.FacilitiesWriter(writer)
             writer.start_facilities({
-                "coordinateReferenceSystem": df_homes.crs
+                "coordinateReferenceSystem": "Atlantis"#df_homes.crs
             })
 
             # Write home

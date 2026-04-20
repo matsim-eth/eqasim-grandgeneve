@@ -97,11 +97,11 @@ def execute(context):
     df_activities["preceding_trip_index"] = df_activities["preceding_trip_index"].astype(int)
     # Prepare spatial data sets
     df_locations = context.stage("synthesis.population.spatial.locations")[[
-        "person_id",  "iris_id", "commune_id","departement_id","region_id","activity_index", "geometry"
+        "person_id",  "iris_id", "commune_id","departement_id","region_id","activity_index", "location_id", "geometry"
     ]]
 
     df_activities = pd.merge(df_activities, df_locations[[
-        "person_id", "iris_id", "commune_id","departement_id","region_id","activity_index", "geometry"
+        "person_id", "iris_id", "commune_id","departement_id","region_id","activity_index", "location_id", "geometry"
     ]], how = "left", on = ["person_id", "activity_index"])
 
     # Prepare spatial activities
@@ -110,9 +110,11 @@ def execute(context):
             "iris_id", "commune_id","departement_id","region_id",
             "preceding_trip_index", "following_trip_index",
             "purpose", "start_time", "end_time",
-            "is_first", "is_last", "geometry"
+            "is_first", "is_last", "location_id", "geometry"
         ]], crs = df_locations.crs)
-    df_spatial = df_spatial.astype({'purpose': 'str', "departement_id": 'str'})
+    df_spatial = df_spatial.astype({'purpose': 'str', "departement_id": 'str',
+                                    "iris_id": "str", "commune_id": "str",
+                                    "region_id": "str"})
 
     # Write activities
     df_activities = df_activities[[
@@ -120,7 +122,7 @@ def execute(context):
         "iris_id", "commune_id","departement_id","region_id",
         "preceding_trip_index", "following_trip_index",
         "purpose", "start_time", "end_time",
-        "is_first", "is_last"
+        "is_first", "is_last", "location_id", "geometry"
     ]]
 
     if "csv" in output_formats:
@@ -163,7 +165,7 @@ def execute(context):
         "preceding_activity_index", "following_activity_index",
         "departure_time", "arrival_time",
         "preceding_purpose", "following_purpose",
-        "is_first", "is_last"
+        "is_first", "is_last", "mode"
     ]]
 
     if context.config("mode_choice"):
@@ -222,7 +224,6 @@ def execute(context):
     if "parquet" in output_formats:
         df_vehicle_types.to_parquet("%s/%svehicle_types.parquet" % (output_path, output_prefix))
         df_vehicles.to_parquet("%s/%svehicles.parquet" % (output_path, output_prefix))
-
 
     if "gpkg" in output_formats:
         path = "%s/%sactivities.gpkg" % (output_path, output_prefix)

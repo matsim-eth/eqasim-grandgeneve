@@ -16,6 +16,11 @@ def configure(context):
     context.config("codes_path", "codes_2024/reference_IRIS_geo2024.zip")
     context.config("codes_xlsx", "reference_IRIS_geo2024.xlsx")
 
+    context.config("generate_outbound_flows", "False")
+
+    if context.config("generate_outbound_flows"):
+        context.stage("data.spatial.ch.spatial")
+
 def execute(context):
     # Load IRIS registry
     with zipfile.ZipFile(
@@ -30,24 +35,41 @@ def execute(context):
                 "REG": "region_id"
             }).fillna('0')
 
-    df_codes["iris_id"] = df_codes["iris_id"].astype("category")
-    df_codes["commune_id"] = df_codes["commune_id"].astype("category")
+    df_codes["iris_id"]        = df_codes["iris_id"].astype("category")
+    df_codes["commune_id"]     = df_codes["commune_id"].astype("category")
     df_codes["departement_id"] = df_codes["departement_id"].astype("category")
-    df_codes["region_id"] = df_codes["region_id"].astype(int)
+    df_codes["region_id"]      = df_codes["region_id"].astype(int)
 
     # Filter zones
-    requested_regions = list(map(int, context.config("regions")))
+    requested_regions     = list(map(int, context.config("regions")))
     requested_departments = list(map(str, context.config("departments")))
 
     if len(requested_regions) > 0:
         df_codes = df_codes[df_codes["region_id"].isin(requested_regions)]
 
     if len(requested_departments) > 0:
-        df_codes = df_codes[df_codes["departement_id"].isin(requested_departments)]
+        df_codes = df_codes[df_codes["departement_id"].isin(requested_departments)]    
 
-    df_codes["iris_id"] = df_codes["iris_id"].cat.remove_unused_categories()
-    df_codes["commune_id"] = df_codes["commune_id"].cat.remove_unused_categories()
+    if context.config("generate_outbound_flows"):
+        _, municipalities = context.stage("data.spatial.ch.spatial")
+
+        municipalities.loc[:, "commune_id"] = "CH" + municipalities["municipality_id"].astype(str).str.zfill(5)
+        municipalities["iris_id"]           = "CH"
+        municipalities["departement_id"]    = "CH"
+        municipalities["region_id"]         = "CH"
+
+        df_codes = pd.concat([df_codes, municipalities[["iris_id", "commune_id", "departement_id", "region_id"]]])
+        df_codes["iris_id"]        = df_codes["iris_id"].astype("category")
+        df_codes["commune_id"]     = df_codes["commune_id"].astype("category")
+        df_codes["departement_id"] = df_codes["departement_id"].astype("category")
+        df_codes["region_id"]      = df_codes["region_id"].astype("category")
+
+    df_codes["iris_id"]        = df_codes["iris_id"].cat.remove_unused_categories()
+    df_codes["commune_id"]     = df_codes["commune_id"].cat.remove_unused_categories()
     df_codes["departement_id"] = df_codes["departement_id"].cat.remove_unused_categories()
+
+    print(df_codes.head())
+    print(df_codes.tail())
 
     return df_codes
 

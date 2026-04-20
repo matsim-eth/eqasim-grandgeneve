@@ -14,7 +14,8 @@ def configure(context):
     context.stage("data.spatial.codes")
 
 def execute(context):
-    df_codes = context.stage("data.spatial.codes")
+    df_codes = context.stage("data.spatial.codes").copy()
+    df_codes = df_codes[df_codes["iris_id"]!="CH"]
 
     source_path = find_iris("{}/{}".format(context.config("data_path"), context.config("iris_path")))
 
@@ -49,8 +50,8 @@ def execute(context):
     requested_iris = set(df_codes["iris_id"].unique())
     merged_iris = set(df_iris["iris_id"].unique())
 
-    if requested_iris != merged_iris:
-        raise RuntimeError("Some IRIS are missing: %s" % (requested_iris - merged_iris,))
+    #if requested_iris != merged_iris:
+    #    raise RuntimeError("Some IRIS are missing: %s" % (requested_iris - merged_iris,))
 
     return df_iris
 

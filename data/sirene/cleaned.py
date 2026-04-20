@@ -72,7 +72,8 @@ def execute(context):
     # Check communes
     df_sirene["commune_id"] = df_sirene["codeCommuneEtablissement"].astype("category")
 
-    df_codes = context.stage("data.spatial.codes")
+    df_codes = context.stage("data.spatial.codes").copy()
+    df_codes = df_codes[df_codes["iris_id"]!="CH"]
     requested_communes = set(df_codes["commune_id"].unique())
     excess_communes = set(df_sirene["commune_id"].unique()) - requested_communes
 

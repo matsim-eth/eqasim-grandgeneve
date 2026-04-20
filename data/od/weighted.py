@@ -15,10 +15,11 @@ def configure(context):
 
     context.config("education_location_source","bpe")
 
+
 def fix_origins(df, commune_ids, purpose,category): 
     existing_ids = set(np.unique(df["origin_id"]))
-    missing_ids = commune_ids - existing_ids
-    categories = set(np.unique(df[category]))
+    missing_ids  = commune_ids - existing_ids
+    categories   = set(np.unique(df[category]))
 
     rows = []
     for origin_id in missing_ids:
@@ -32,15 +33,17 @@ def fix_origins(df, commune_ids, purpose,category):
         rows, columns = ["origin_id", "destination_id", category, "weight"]
     )]).sort_values(["origin_id", "destination_id"])
 
+
 def execute(context):
-    df_codes = context.stage("data.spatial.codes")
+    df_codes = context.stage("data.spatial.codes").copy()
+    
     commune_ids = set(df_codes["commune_id"].unique())
 
     # Load data
     df_work, df_education = context.stage("data.od.cleaned")
 
     # Add missing origins
-    df_work = fix_origins(df_work, commune_ids, "work","commute_mode")
+    df_work      = fix_origins(df_work, commune_ids, "work","commute_mode")
     df_education = fix_origins(df_education, commune_ids, "education","age_range")
 
     # Aggregate work (we do not consider different modes at the moment)
@@ -56,8 +59,9 @@ def execute(context):
     if context.config("education_location_source") == 'bpe':
         # Aggregate education (we do not consider different age range with bpe source)
         df_education = df_education[["origin_id", "destination_id", "weight","total"]].groupby(["origin_id", "destination_id"],observed=False).sum().reset_index()    
+    
     # Compute weight
-    df_work["weight"] /= df_work["total"]
+    df_work["weight"]      /= df_work["total"]
     df_education["weight"] /= df_education["total"]
 
     del df_work["total"]

@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 
+
 def configure(context):
     context.stage("data.od.weighted")
 
@@ -15,11 +16,13 @@ def configure(context):
     context.config("random_seed")
     context.config("education_location_source", "bpe")
 
+
 EDUCATION_MAPPING = {
     "primary_school": ["C1"],
     "middle_school": ["C2"],
     "high_school": ["C3"],
     "higher_education": ["C4", "C5", "C6"]}
+
 
 def sample_destination_municipalities(context, arguments):
     # Load data
@@ -31,14 +34,22 @@ def sample_destination_municipalities(context, arguments):
     df_od = df_od[df_od["origin_id"] == origin_id].copy()
 
     # Sample destinations
+<<<<<<< Updated upstream
     weights = df_od["weight"].values.astype(np.float64) # conversion for multinomial
     weights = weights / np.sum(weights)
 
     df_od["count"] = random.multinomial(count, weights)
+=======
+    weights = df_od["weight"].to_numpy(dtype=np.float64)
+    pvals   = weights / weights.sum()
+    pvals  /= pvals.sum()
+    df_od["count"] = random.multinomial(count, pvals)
+>>>>>>> Stashed changes
     df_od = df_od[df_od["count"] > 0]
 
     context.progress.update()
     return df_od[["origin_id", "destination_id", "count"]]
+
 
 def sample_locations(context, arguments):
     # Load data
@@ -81,6 +92,45 @@ def sample_locations(context, arguments):
 
     return df_result
 
+
+def sample_locations2(df_locations, df_flow, arguments):
+    # Load data
+    destination_id, random_seed = arguments
+
+    # Prepare state
+    random = np.random.default_rng(random_seed)
+    df_locations = df_locations[df_locations["commune_id"] == destination_id]
+    
+    # Determine demand
+    df_flow = df_flow[df_flow["destination_id"] == destination_id]
+    count = df_flow["count"].sum()
+
+    # Sample destinations
+    weight = np.ones((len(df_locations),)) / len(df_locations)
+
+    if "weight" in df_locations:
+        weight = df_locations["weight"].values / df_locations["weight"].sum()
+    
+    location_counts = random.multinomial(count, weight)
+    location_ids = df_locations["location_id"].values
+    location_ids = np.repeat(location_ids, location_counts)
+
+    # Shuffle, as otherwise it is likely that *all* copies 
+    # of the first location id go to the first origin, and so on
+    random.shuffle(location_ids)
+
+    # Construct a data set for all commutes to this zone
+    origin_id = np.repeat(df_flow["origin_id"].values, df_flow["count"].values)
+
+    df_result = pd.DataFrame.from_records(dict(
+        origin_id = origin_id,
+        location_id = location_ids
+    ))
+    df_result["destination_id"] = destination_id
+
+    return df_result
+
+
 def process(context, purpose, random, df_persons, df_od, df_locations,step_name):
     df_persons = df_persons[df_persons["has_%s_trip" % purpose]]
 
@@ -107,12 +157,19 @@ def process(context, purpose, random, df_persons, df_od, df_locations,step_name)
 
     with context.progress(label = "Sampling %s destinations" % purpose, total = len(df_demand)) as progress:
         with context.parallel(dict(df_locations = df_locations, df_flow = df_flow)) as parallel:
+            for unique_id, random_seed in zip(unique_ids, random_seeds):
+                try:
+                    sample_locations2(df_locations, df_flow, (unique_id, random_seed))
+                except ValueError as e:
+                    print(f"Failed for id={unique_id}, seed={random_seed}: {e}")
+                    break
             for df_partial in parallel.imap_unordered(sample_locations, zip(unique_ids, random_seeds)):
                 df_result.append(df_partial)
 
     df_result = pd.concat(df_result).sort_values(["origin_id", "destination_id"])
 
     return df_result[["origin_id", "destination_id", "location_id"]]
+
 
 def execute(context):
     # Prepare population data

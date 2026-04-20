@@ -15,13 +15,14 @@ def execute(context):
     df = context.stage("data.census.cleaned")
 
     # Filter requested codes
-    df_codes = context.stage("data.spatial.codes")
+    df_codes = context.stage("data.spatial.codes").copy()
+    df_codes = df_codes[df_codes["iris_id"]!="CH"]
 
     requested_departements = df_codes["departement_id"].unique()
     df = df[df["departement_id"].isin(requested_departements)]
 
     excess_communes = set(df["commune_id"].unique()) - set(df_codes["commune_id"].unique())
-    if not excess_communes == {"undefined"}:
+    if excess_communes and excess_communes != {"undefined"}:
         raise RuntimeError("Found additional communes: %s" % excess_communes)
 
     excess_iris = set(df["iris_id"].unique()) - set(df_codes["iris_id"].unique())

@@ -89,7 +89,8 @@ def execute(context):
     df_bdtopo = pd.concat(df_bdtopo)
 
     for department_id in df_departments["departement_id"].values:
-        assert np.count_nonzero(df_bdtopo["department_id"] == department_id) > 0
+        if department_id.isnumeric():
+            assert np.count_nonzero(df_bdtopo["department_id"] == department_id) > 0
 
     return df_bdtopo[["building_id", "housing", "geometry"]]
 

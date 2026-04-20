@@ -16,7 +16,8 @@ def configure(context):
     context.stage("data.spatial.codes")
 
 def execute(context):
-    df_codes = context.stage("data.spatial.codes")
+    df_codes = context.stage("data.spatial.codes").copy()
+    df_codes = df_codes[df_codes["iris_id"]!="CH"]
 
     # the downloaded excel files meta-data are actually have a badly formatted ISO datetime
     # https://foss.heptapod.net/openpyxl/openpyxl/-/issues/1659 

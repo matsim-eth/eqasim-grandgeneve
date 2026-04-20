@@ -54,7 +54,8 @@ def execute(context):
     }
 
     # Zones
-    df_codes = context.stage("data.spatial.codes")
+    df_codes = context.stage("data.spatial.codes").copy()
+    df_codes = df_codes[df_codes["iris_id"]!="CH"]
 
     info["zones"] = {
         "number_of_municipalities": len(df_codes["commune_id"].unique()),

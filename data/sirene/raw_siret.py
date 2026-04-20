@@ -15,7 +15,8 @@ def configure(context):
 
 def execute(context):
     # Filter by departement
-    df_codes = context.stage("data.spatial.codes")
+    df_codes = context.stage("data.spatial.codes").copy()
+    df_codes = df_codes[df_codes["iris_id"]!="CH"]
     requested_departements = set(df_codes["departement_id"].unique())
 
     filename = os.path.join(context.config("data_path"), context.config("siret_path"))

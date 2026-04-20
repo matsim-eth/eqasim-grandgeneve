@@ -21,7 +21,8 @@ BAN_DTYPES = {
 
 def execute(context):
     # Find relevant departments
-    df_codes = context.stage("data.spatial.codes")
+    df_codes = context.stage("data.spatial.codes").copy()
+    df_codes = df_codes[df_codes["iris_id"]!="CH"]
     requested_departments = set(df_codes["departement_id"].unique())
 
     # Load BAN
