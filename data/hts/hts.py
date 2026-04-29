@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 
+
 def swap_departure_arrival_times(df, f):
     assert "arrival_time" in df
     assert "departure_time" in df
@@ -10,6 +11,7 @@ def swap_departure_arrival_times(df, f):
 
     df.loc[f, "departure_time"] = arrival_times
     df.loc[f, "arrival_time"] = departure_times
+
 
 def fix_trip_times(df_trips):
     """
@@ -99,6 +101,7 @@ def fix_trip_times(df_trips):
 
     return df_main
 
+
 def check_trip_times(df_trips):
     print("Validating trip times...")
     any_errors = False
@@ -168,12 +171,14 @@ def check_trip_times(df_trips):
         print("  => All trip times are consistent!")
         return True
 
+
 def fix_activity_types(df_trips):
     f = (df_trips["preceding_purpose"] != df_trips["following_purpose"].shift(1)) & ~df_trips["is_first_trip"]
     df_trips.loc[f, "preceding_purpose"] = df_trips.shift(1)["following_purpose"][f].values
     print("Fixing %d inconsistent activity types" % np.count_nonzero(f))
 
     check_activity_types(df_trips)
+
 
 def check_activity_types(df_trips):
     f  = (df_trips["following_purpose"] != df_trips["preceding_purpose"].shift(-1)) & ~df_trips["is_last_trip"]
@@ -184,6 +189,7 @@ def check_activity_types(df_trips):
 
     return error_count == 0
 
+
 def compute_first_last(df_trips):
     assert "person_id" in df_trips
 
@@ -193,6 +199,7 @@ def compute_first_last(df_trips):
 
     return df_trips
 
+
 def compute_activity_duration(df_trips):
     assert "departure_time" in df_trips
     assert "arrival_time" in df_trips
@@ -201,12 +208,14 @@ def compute_activity_duration(df_trips):
     df_trips["activity_duration"] = df_next["departure_time"] - df_trips["arrival_time"]
     df_trips.loc[df_trips["is_last_trip"], "activity_duration"] = np.nan
 
+
 def check_household_size(df_households, df_persons):
     df_size = df_persons.groupby("household_id").size().reset_index(name = "count")
     df_size = pd.merge(df_households[["household_id", "household_size"]], df_size, on = "household_id")
 
     assert len(df_size) == len(df_households)
     assert (df_size["household_size"] == df_size["count"]).all()
+
 
 def calculate_consumption_units(df_persons):
     df_units = df_persons[["household_id", "age"]].copy()
@@ -220,11 +229,13 @@ def calculate_consumption_units(df_persons):
 
     return df_units[["household_id", "consumption_units"]]
 
+
 HOUSEHOLD_COLUMNS = [
     "household_id", "household_weight", "household_size",
     "number_of_vehicles", "number_of_bikes", "departement_id",
     "consumption_units", # "income_class"
 ]
+
 
 PERSON_COLUMNS = [
     "person_id", "household_id", "person_weight",
@@ -234,6 +245,7 @@ PERSON_COLUMNS = [
     "is_passenger", "socioprofessional_class"
 ]
 
+
 TRIP_COLUMNS = [
     "person_id", "trip_id", "trip_weight",
     "departure_time", "arrival_time",
@@ -241,6 +253,7 @@ TRIP_COLUMNS = [
     "following_purpose", "preceding_purpose", "is_last_trip", "is_first_trip",
     "mode", "origin_departement_id", "destination_departement_id"
 ]
+
 
 def check(df_households, df_persons, df_trips):
     assert check_trip_times(df_trips)

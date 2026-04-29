@@ -33,7 +33,7 @@ K_DEPLOC_COLUMNS = [
     "V2_TYPJOUR", "V2_MORIHDEP", "V2_MDESHARR", "V2_MDISTTOT",
     "IDENT_JOUR", "V2_MTP",
     "V2_MDESDEP", "V2_MORIDEP", "NDEP", "V2_MOBILREF",
-    "PONDKI"
+    "PONDKI", "V2_JOUR_DEP"
 ]
 
 def configure(context):

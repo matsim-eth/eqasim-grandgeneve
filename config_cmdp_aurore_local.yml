@@ -6,7 +6,9 @@ working_directory: /home/asallard/Euler_scratch/eqasim_IDF_test
 
 # This section defines which parts of the pipeline should be run
 run:
-  - data.locations_CH.statent.destinations # To create the output population in the output_path (see below)
+  #- data.locations_CH.statent.destinations # To create the output population in the output_path (see below)
+  #- data.hts.selected
+  - synthesis.output
   #- data.gtfs.output
   #- data.ban.raw
   #- data.bdtopo.raw
@@ -46,9 +48,10 @@ config:
 
   ## Define whether to use ENTD or EGT as the HTS
   hts: edgt_74 # entd, egt, edgt_lyon, edgt_44
+  edgt74_version: tpg # adisp (default) or tpg. 
 
   ## Whether to filter people going outside of the area and other filters
-  # filter_hts: true
+  filter_hts: false
 
   ## if selected, chose the source for edgt_lyon
   # edgt_lyon_source: unchosen # unchosen, adisp, cerema
@@ -62,6 +65,14 @@ config:
   
   ## select departments by department_id
   departments: ["74", "73", "39", "25", "01"]
+
+  ##################
+  # Day selection  #
+  ##################
+  specific_day_scenario: workday # default = workday. Otherwise weekend or any day or list of day like monday or ["thursday", "friday"] is admissible
+  # might affect which HTS is used: if edgt_74 is chosen but a weekend scenario is selected here, the HTS will default to ENTD as EDGT did not interview
+  # people in the weekend
+
     
   #######################
   #     Output paths    #
@@ -230,6 +241,7 @@ config:
   ##############################
   generate_outbound_flows: true
   swiss_cantons: "/home/asallard/Euler_data/ch_data/pipeline/spatial/canton/swissBOUNDARIES3D_1_5_TLM_KANTONSGEBIET.shp"
+  swiss_municipalities: "/home/asallard/Euler_data/ch_data/pipeline/spatial/municipality/2022/swissBOUNDARIES3D_1_5_TLM_HOHEITSGEBIET.shp"
   cantons: ["Genève", "Vaud"]
 
   # income_com_path: filosofi_2019/indic-struct-distrib-revenu-2019-COMMUNES.zip

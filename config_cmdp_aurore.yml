@@ -7,7 +7,7 @@ working_directory: /cluster/scratch/asallard/FR_geneva_test
 # This section defines which parts of the pipeline should be run
 run:
   - synthesis.output # To create the output population in the output_path (see below)
-  #- data.locations_CH.statent.statent
+  - data.hts.edgt_74.adisp.raw
   # - data.gtfs.output
   # - data.ban.raw
   # - data.bdtopo.raw
@@ -50,9 +50,10 @@ config:
 
   ## Define whether to use ENTD or EGT as the HTS
   hts: edgt_74 # entd, egt, edgt_lyon, edgt_44
+  edgt74_version: tpg # adisp (default) or tpg. 
 
   ## Whether to filter people going outside of the area and other filters
-  # filter_hts: true
+  filter_hts: false
 
   ## if selected, chose the source for edgt_lyon
   # edgt_lyon_source: unchosen # unchosen, adisp, cerema
@@ -66,6 +67,13 @@ config:
   
   ## select departments by department_id
   departments: ["74", "73", "39", "25", "01"]
+
+  ##################
+  # Day selection  #
+  ##################
+
+  ## select scenario day or days. Options: workday, weekend, any list or string from monday to friday.
+  specific_day_scenario: workday
     
   #######################
   #     Output paths    #

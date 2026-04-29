@@ -10,7 +10,11 @@ This stage cleans the national HTS.
 def configure(context):
     context.stage("data.hts.entd.raw")
 
+    context.config("specific_day_scenario", "workday")
+
+
 INCOME_CLASS_BOUNDS = [400, 600, 800, 1000, 1200, 1500, 1800, 2000, 2500, 3000, 4000, 6000, 10000, 1e6]
+
 
 PURPOSE_MAP = [
     ("1", "home"),
@@ -24,6 +28,7 @@ PURPOSE_MAP = [
     ("8", "leisure"),
     ("9", "work")
 ]
+
 
 MODES_MAP = [
     ("1", "walk"),
@@ -41,16 +46,55 @@ MODES_MAP = [
 #    ("9", "pt") # Other
 ]
 
+
+WEEKDAYS = {"monday", "tuesday", "wednesday", "thursday", "friday"}
+WEEKEND  = {"saturday", "sunday"}
+ALL_DAYS = WEEKDAYS | WEEKEND
+
+DAY_TO_INT = {
+    "monday": 1, "tuesday": 2, "wednesday": 3,
+    "thursday": 4, "friday": 5
+}
+
+
+def resolve_days(day):
+    if isinstance(day, str):
+        if day == "workday":
+            return sorted(WEEKDAYS)
+        elif day == "weekend":
+            return sorted(WEEKEND)
+        elif day in ALL_DAYS:
+            return [day]
+        else:
+            raise RuntimeError(f"Invalid day value: {day}. Expected a day name, workday, or weekend.")
+        
+    elif isinstance(day, (list, tuple)):
+        day     = list(day)
+        invalid = set(day) - ALL_DAYS
+        if invalid:
+            raise RuntimeError(f"Invalid day value(s): {invalid}. Expected day names from {ALL_DAYS}.")
+        return day
+    
+    else:
+        raise RuntimeError(f"Invalid type for day parameter: {type(day)}. Expected str or list.")
+    
+
+def filter_by_days(df, days):
+    day_ints = [DAY_TO_INT[d] for d in days]
+    return df[df["JOUR_SEM_DEPL"].isin(day_ints)]
+
+
 def convert_time(x):
     return np.dot(np.array(x.split(":"), dtype = float), [3600.0, 60.0, 1.0])
+
 
 def execute(context):
     df_individu, df_tcm_individu, df_menage, df_tcm_menage, df_deploc = context.stage("data.hts.entd.raw")
 
     # Make copies
-    df_persons = pd.DataFrame(df_tcm_individu, copy = True)
+    df_persons    = pd.DataFrame(df_tcm_individu, copy = True)
     df_households = pd.DataFrame(df_tcm_menage, copy = True)
-    df_trips = pd.DataFrame(df_deploc, copy = True)
+    df_trips      = pd.DataFrame(df_deploc, copy = True)
 
     # Get weights for persons that actually have trips
     df_persons = pd.merge(df_persons, df_trips[["IDENT_IND", "PONDKI"]].drop_duplicates("IDENT_IND"), on = "IDENT_IND", how = "left")
@@ -73,13 +117,16 @@ def execute(context):
     ]], on = "IDENT_IND", how = "left")
 
     # Transform original IDs to integer (they are hierarchichal)
-    df_persons["entd_person_id"] = df_persons["IDENT_IND"].astype(int)
-    df_persons["entd_household_id"] = df_persons["IDENT_MEN"].astype(int)
+    df_persons["entd_person_id"]       = df_persons["IDENT_IND"].astype(int)
+    df_persons["entd_household_id"]    = df_persons["IDENT_MEN"].astype(int)
     df_households["entd_household_id"] = df_households["idENT_MEN"].astype(int)
-    df_trips["entd_person_id"] = df_trips["IDENT_IND"].astype(int)
+    df_trips["entd_person_id"]         = df_trips["IDENT_IND"].astype(int)
 
     # Construct new IDs for households, persons and trips (which are unique globally)
     df_households["household_id"] = np.arange(len(df_households))
+
+    # Select only relevant days
+    days = resolve_days(context.config("specific_day_scenario"))
 
     df_persons = pd.merge(
         df_persons, df_households[["entd_household_id", "household_id"]],
@@ -198,9 +245,9 @@ def execute(context):
     df_trips["routed_distance"] = df_trips["routed_distance"].fillna(0.0) # This should be just one within Île-de-France
 
     # Only leave weekday trips
-    f = df_trips["V2_TYPJOUR"] == 1
-    print("Removing %d trips on weekends" % np.count_nonzero(~f))
-    df_trips = df_trips[f]
+    #f = df_trips["V2_TYPJOUR"] == 1
+    #print("Removing %d trips on weekends" % np.count_nonzero(~f))
+    #df_trips = df_trips[f]
 
     # Only leave one day per person
     initial_count = len(df_trips)
