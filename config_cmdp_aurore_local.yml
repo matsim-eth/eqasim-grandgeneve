@@ -2,16 +2,18 @@
 ## based on the synpp package
 
 # This is the path to a directory where the pipeline can store temporary data
-working_directory: /home/asallard/Euler_scratch/eqasim_IDF_test
+working_directory: /home/asallard/Euler_scratch/FR_geneva_output
 
 # This section defines which parts of the pipeline should be run
 run:
   #- data.locations_CH.statent.destinations # To create the output population in the output_path (see below)
-  #- data.hts.selected
+  # - data.hts.selected
   - synthesis.output
-  #- data.gtfs.output
-  #- data.ban.raw
-  #- data.bdtopo.raw
+  # - analysis.reference.hts.chains
+  # - synthesis.population.sampled
+  # - data.gtfs.output
+  # - data.ban.raw
+  # - data.bdtopo.raw
   # - data.ban.raw
   # - matsim.runtime.pt2matsim
   # - matsim.output # Uncomment, if you want to run the full simulation (you'll need Java for that)
@@ -31,7 +33,7 @@ config:
   ################
   
   ## global random seed for the output population
-  random_seed: 1234
+  random_seed: 42
 
   ## bpe specific random seed when impute missing coordinates for known IRIS
   # bpe_random_seed: 0
@@ -48,7 +50,7 @@ config:
 
   ## Define whether to use ENTD or EGT as the HTS
   hts: edgt_74 # entd, egt, edgt_lyon, edgt_44
-  edgt74_version: tpg # adisp (default) or tpg. 
+  edgt74_version: adisp # adisp (default) or tpg. 
 
   ## Whether to filter people going outside of the area and other filters
   filter_hts: false
@@ -61,10 +63,10 @@ config:
   ##################
 
   ## select regions by region_id
-  regions: ["84", "27"]
+  regions: ["84"]
   
   ## select departments by department_id
-  departments: ["74", "73", "39", "25", "01"]
+  departments: ["74", "01"]
 
   ##################
   # Day selection  #
@@ -79,7 +81,7 @@ config:
   #######################
   
   ## output folder
-  output_path: /home/asallard/Euler_scratch/eqasim_IDF_test
+  output_path: /home/asallard/Euler_scratch/FR_geneva_output
 
   ## output prefix, appended to file names
   output_prefix: cmdp_

@@ -2,12 +2,12 @@
 ## based on the synpp package
 
 # This is the path to a directory where the pipeline can store temporary data
-working_directory: /cluster/scratch/asallard/FR_geneva_test
+working_directory: /cluster/scratch/asallard/geneva_for_cloe
 
 # This section defines which parts of the pipeline should be run
 run:
   - synthesis.output # To create the output population in the output_path (see below)
-  - data.hts.edgt_74.adisp.raw
+  # - data.hts.edgt_74.adisp.raw
   # - data.gtfs.output
   # - data.ban.raw
   # - data.bdtopo.raw
@@ -33,7 +33,7 @@ config:
   ################
   
   ## global random seed for the output population
-  random_seed: 1234
+  random_seed: 31415
 
   ## bpe specific random seed when impute missing coordinates for known IRIS
   # bpe_random_seed: 0
@@ -42,7 +42,7 @@ config:
   # Define sampling rate for the output population #
   ##################################################
   
-  sampling_rate: 0.01
+  sampling_rate: 1
 
   #################################
   # household travel survey (HTS) #
@@ -50,7 +50,7 @@ config:
 
   ## Define whether to use ENTD or EGT as the HTS
   hts: edgt_74 # entd, egt, edgt_lyon, edgt_44
-  edgt74_version: tpg # adisp (default) or tpg. 
+  edgt74_version: adisp # adisp (default) or tpg. 
 
   ## Whether to filter people going outside of the area and other filters
   filter_hts: false
@@ -63,10 +63,10 @@ config:
   ##################
 
   ## select regions by region_id
-  regions: ["84", "27"]
+  regions: ["84"]
   
   ## select departments by department_id
-  departments: ["74", "73", "39", "25", "01"]
+  departments: ["74", "01"]
 
   ##################
   # Day selection  #
@@ -80,10 +80,10 @@ config:
   #######################
   
   ## output folder
-  output_path: /cluster/scratch/asallard/FR_geneva_output
+  output_path: /cluster/scratch/asallard/geneva_for_cloe/output
 
   ## output prefix, appended to file names
-  output_prefix: cmdp_
+  output_prefix: grandgeneveFR_
 
   ## file formats that should be exported
   # output_formats: ["csv", "gpkg"] # ["csv", "gpkg", "parquet", "geoparquet"]
@@ -246,7 +246,7 @@ config:
   swiss_cantons: "/cluster/project/cmdp/ch_data/pipeline/spatial/canton/swissBOUNDARIES3D_1_5_TLM_KANTONSGEBIET.shp"
   swiss_municipalities: "/cluster/project/cmdp/ch_data/pipeline/spatial/municipality/2022/swissBOUNDARIES3D_1_5_TLM_HOHEITSGEBIET.shp"
   
-  cantons: ["Genève", "Vaud"]
+  cantons: ["Genève", "Vaud", "Valais"]
 
   # income_com_path: filosofi_2019/indic-struct-distrib-revenu-2019-COMMUNES.zip
   # income_com_xlsx: FILO2019_DISP_COM.xlsx
@@ -279,9 +279,9 @@ config:
   # population_year: 19
 
   ## population projections
-  # projection_path: projection_2021
-  # projection_scenario: 00_central
-  # projection_year: 2030
+  #projection_path: projection_2021
+  #projection_scenario: 00_central
+  #projection_year: 2025
 
   # vehicles_method: default # fleet_sample, default
   # vehicles_path: vehicles

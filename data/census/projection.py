@@ -18,6 +18,7 @@ def configure(context):
 
     context.stage("data.spatial.departments")
 
+
 def execute(context):
     df_departments = context.stage("data.spatial.departments")
 
@@ -60,6 +61,7 @@ def execute(context):
     # Cleanup
     df = df[["department_id", "sex", "minimum_age", "maximum_age", "weight"]] 
     return df
+
 
 def validate(context):
     if context.config("projection_year") is not None or context.config("projection_scenario") is not None:

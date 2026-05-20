@@ -1,6 +1,8 @@
 import os
 import pandas as pd
 import zipfile
+from shapely.ops import unary_union
+
 
 """
 This stages loads a file containing all spatial codes in France and how
@@ -21,6 +23,7 @@ def configure(context):
     if context.config("generate_outbound_flows"):
         context.stage("data.spatial.ch.spatial")
 
+
 def execute(context):
     # Load IRIS registry
     with zipfile.ZipFile(
@@ -33,7 +36,7 @@ def execute(context):
                 "DEPCOM": "commune_id",
                 "DEP": "departement_id",
                 "REG": "region_id"
-            }).fillna('0')
+            }).fillna("0")
 
     df_codes["iris_id"]        = df_codes["iris_id"].astype("category")
     df_codes["commune_id"]     = df_codes["commune_id"].astype("category")
@@ -68,10 +71,8 @@ def execute(context):
     df_codes["commune_id"]     = df_codes["commune_id"].cat.remove_unused_categories()
     df_codes["departement_id"] = df_codes["departement_id"].cat.remove_unused_categories()
 
-    print(df_codes.head())
-    print(df_codes.tail())
-
     return df_codes
+
 
 def validate(context):
     if not os.path.exists("%s/%s" % (context.config("data_path"), context.config("codes_path"))):

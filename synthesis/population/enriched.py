@@ -36,38 +36,37 @@ def execute(context):
     ]]
 
     # Attach matching information
-    df_matching = context.stage("synthesis.population.matched")
+    df_matching   = context.stage("synthesis.population.matched")
     df_population = pd.merge(df_population, df_matching, on = "person_id")
 
-    initial_size = len(df_population)
-    initial_person_ids = len(df_population["person_id"].unique())
+    initial_size          = len(df_population)
+    initial_person_ids    = len(df_population["person_id"].unique())
     initial_household_ids = len(df_population["household_id"].unique())
 
     # Attach person and household attributes from HTS
     df_hts_households, df_hts_persons, _ = context.stage("hts")
-    df_hts_persons = df_hts_persons.rename(columns = { "person_id": "hts_id", "household_id": "hts_household_id" })
+    df_hts_persons    = df_hts_persons.rename(columns = { "person_id": "hts_id", "household_id": "hts_household_id" })
     df_hts_households = df_hts_households.rename(columns = { "household_id": "hts_household_id" })
 
-    columns = ["hts_id", "hts_household_id", "has_license", "has_pt_subscription", "is_passenger"]
+    columns    = ["hts_id", "hts_household_id", "has_license", "has_pt_subscription", "is_passenger"]
     extra_cols = context.config("extra_enriched_attributes")
+
     assert isinstance(extra_cols, list), "`extra_enriched_attributes` parameter must be a list"
     columns += extra_cols
-    df_population = pd.merge(df_population, df_hts_persons[columns], on="hts_id")
 
-    df_population = pd.merge(df_population, df_hts_households[[
-        "hts_household_id", "number_of_bikes"
-    ]], on = "hts_household_id")
+    df_population = pd.merge(df_population, df_hts_persons[columns], on="hts_id")
+    df_population = pd.merge(df_population, df_hts_households[["hts_household_id", "number_of_bikes"]], on = "hts_household_id")
 
     # Attach income
-    df_income = context.stage("synthesis.population.income.selected")
-    df_population = pd.merge(df_population, df_income[[
-        "household_id", "household_income"
-    ]], on = "household_id")
+    df_income     = context.stage("synthesis.population.income.selected")
+    df_population = pd.merge(df_population, df_income[["household_id", "household_income"]], on = "household_id")
 
     # Check consistency
-    final_size = len(df_population)
-    final_person_ids = len(df_population["person_id"].unique())
+    final_size          = len(df_population)
+    final_person_ids    = len(df_population["person_id"].unique())
     final_household_ids = len(df_population["household_id"].unique())
+
+    print(initial_size, final_size)
 
     assert initial_size == final_size
     assert initial_person_ids == final_person_ids

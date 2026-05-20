@@ -21,8 +21,9 @@ INCOME_CLASS = {
 
 DEFAULT_MATCHING_ATTRIBUTES = [
     "sex", "any_cars", "age_class", "socioprofessional_class",
-    "departement_id"
+    #"departement_id"
 ]
+
 
 def configure(context):
     context.config("processes", volatile = True)
@@ -36,6 +37,7 @@ def configure(context):
     hts = context.config("hts")
     context.stage("data.hts.selected", alias = "hts")
 
+
 @numba.jit(nopython = True) # Already parallelized parallel = True)
 def sample_indices(uniform, cdf, selected_indices):
     indices = np.arange(len(uniform))
@@ -44,6 +46,7 @@ def sample_indices(uniform, cdf, selected_indices):
         indices[i] = np.count_nonzero(cdf < u)
 
     return selected_indices[indices]
+
 
 def statistical_matching(progress, df_source, source_identifier, weight, df_target, target_identifier, columns, random_seed = 0, minimum_observations = 0):
     random = np.random.default_rng(random_seed)
@@ -130,6 +133,7 @@ def statistical_matching(progress, df_source, source_identifier, weight, df_targ
 
     return df_target, assigned_levels
 
+
 def _run_parallel_statistical_matching(context, args):
     # Pass arguments
     df_target, random_seed = args
@@ -143,6 +147,7 @@ def _run_parallel_statistical_matching(context, args):
     minimum_observations = context.data("minimum_observations")
 
     return statistical_matching(context.progress, df_source, source_identifier, weight, df_target, target_identifier, columns, random_seed, minimum_observations)
+
 
 def parallel_statistical_matching(context, df_source, source_identifier, weight, df_target, target_identifier, columns, minimum_observations = 0):
     random_seed = context.config("random_seed")
@@ -167,6 +172,7 @@ def parallel_statistical_matching(context, df_source, source_identifier, weight,
 
                 return df_target, levels
 
+
 def execute(context):
     hts = context.config("hts")
 
@@ -177,6 +183,9 @@ def execute(context):
     df_target = context.stage("synthesis.population.sampled")
 
     columns = context.config("matching_attributes")
+
+    if hts == "edgt_74":
+        columns = ["edgt_area"] + columns
 
     try:
         default_index = columns.index("*default*")

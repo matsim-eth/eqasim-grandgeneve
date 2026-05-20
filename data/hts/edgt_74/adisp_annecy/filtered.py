@@ -5,7 +5,7 @@ This stage filters out observations which live or work outside of the area.
 """
 
 def configure(context):
-    context.stage("data.hts.edgt_74.adisp.cleaned")
+    context.stage("data.hts.edgt_74.adisp_annecy.cleaned")
     
     context.stage("data.spatial.codes")
     
@@ -14,9 +14,10 @@ def configure(context):
 
 def execute(context):
     filter_edgt = context.config("filter_hts")
-    df_codes = context.stage("data.spatial.codes").copy()
-    df_codes = df_codes[df_codes["iris_id"]!="CH"]
-    df_households, df_persons, df_trips = context.stage("data.hts.edgt_74.adisp.cleaned")
+    df_codes    = context.stage("data.spatial.codes").copy()
+    df_codes    = df_codes[df_codes["iris_id"] != "CH"]
+
+    df_households, df_persons, df_trips = context.stage("data.hts.edgt_74.adisp_annecy.cleaned")
 
     if filter_edgt : 
         # Filter for non-residents

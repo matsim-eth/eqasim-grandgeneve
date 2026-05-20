@@ -1,61 +1,34 @@
-import numpy as np
 import pandas as pd
-import itertools
 
-"""
-This stage has the census data as input and samples households according to the
-household weights given by INSEE. The resulting sample size can be controlled
-through the 'sampling_rate' configuration option.
-"""
+
+
 
 def configure(context):
-    if context.config("projection_year", None) is None:
-        context.stage("data.census.filtered", alias = "source")
-    else:
-        context.stage("synthesis.population.projection.reweighted", alias = "source")
+    context.stage("synthesis.population.sampled_before_spatial_selection")
+    context.stage("synthesis.population.spatial.home.zones")
+    context.stage("data.spatial.iris")
 
-    context.config("random_seed")
-    context.config("sampling_rate")
+    context.config("hts", default = "emp")
+    if context.config("hts") == "edgt_74":
+        context.config("edgt74_version", default = "adisp")
+
 
 def execute(context):
-    df_census = context.stage("source").sort_values(by = ["household_id", "person_id"]).copy()
+    population = context.stage("synthesis.population.sampled_before_spatial_selection")
+    homes      = context.stage("synthesis.population.spatial.home.zones")
 
-    sampling_rate = context.config("sampling_rate")
-    random = np.random.default_rng(context.config("random_seed"))
+    if context.config("hts") == "edgt_74":
+        if context.config("edgt74_version") == "adisp":
+            iris = context.stage("data.spatial.iris")
 
-    # Perform stochastic rounding for the population (and scale weights)
-    df_rounding = df_census[["household_id", "weight", "household_size"]].drop_duplicates("household_id")
-    df_rounding["multiplicator"] = np.floor(df_rounding["weight"])
-    df_rounding["multiplicator"] += random.random(len(df_rounding)) <= (df_rounding["weight"] - df_rounding["multiplicator"])
-    df_rounding["multiplicator"] = df_rounding["multiplicator"].astype(int)
+            homes = homes.merge(iris[["iris_id", "edgt_area"]], on = "iris_id", how = "left")
+            population = population.merge(homes[["household_id", "edgt_area"]], on = "household_id", how = "left")
 
-    # Multiply households (use same multiplicator for all household members)
-    household_multiplicators = df_rounding["multiplicator"].values
-    household_sizes = df_rounding["household_size"].values
+            print(len(population))
+            population = population[population["edgt_area"].notna()]
+            print(len(population))
 
-    # create index to replicate all households members by their household weight
-    # the order ([0, 1, 0, 1, 2, 2, ...]) is important here as they will be reassigned to new housholds later with that assumption
-    expandor = np.split(np.arange(len(df_census)), np.cumsum(household_sizes))
-    expandor = np.asarray([x for x in expandor if x.size > 0], dtype="object")
-    expandor = np.repeat(expandor, household_multiplicators, axis=0)
-    expandor = list(itertools.chain(*expandor))
+            print(population.groupby("edgt_area", dropna = False)["person_id"].count())
 
-    df_census = df_census.iloc[expandor]
+    return population
 
-    # Create new household and person IDs
-    df_census["census_person_id"] = df_census["person_id"]
-    df_census["census_household_id"] = df_census["household_id"]
-
-    df_census["person_id"] = np.arange(len(df_census))
-
-    household_sizes = np.repeat(household_sizes, household_multiplicators)
-    household_count = np.sum(household_multiplicators)
-    df_census.loc[:, "household_id"] = np.repeat(np.arange(household_count), household_sizes)
-
-    # Select sample from 100% population
-    selector = random.random(household_count) < sampling_rate
-    selector = np.repeat(selector, household_sizes)
-    df_census = df_census[selector]
-
-    del df_census["weight"]
-    return df_census

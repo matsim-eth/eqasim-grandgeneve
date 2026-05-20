@@ -1,4 +1,3 @@
-from tqdm import tqdm
 import pandas as pd
 import numpy as np
 import data.hts.hts as hts
@@ -17,6 +16,7 @@ def configure(context):
 
     if context.config("use_urban_type", False):
         context.stage("data.spatial.urban_type")
+
 
 def execute(context):
     df = context.stage("data.census.raw")
@@ -92,6 +92,7 @@ def execute(context):
     df["number_of_motorcycles"] = df["DEROU"].apply(
         lambda x: str(x).replace("U", "0").replace("Z", "0").replace("X", "0")
     ).astype(int)
+    
     # DEROU is often not known, if commute by motorcycle, at least one motorcycle in the household
     df["number_of_motorcycles"] += ((df["number_of_motorcycles"] == 0) & (df["commute_mode"] == "motorcycle")).astype(int)
     df["number_of_vehicles"] = df["number_of_cars"] + df["number_of_motorcycles"]

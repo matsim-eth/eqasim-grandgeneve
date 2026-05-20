@@ -7,7 +7,8 @@ This stage cleans the Annemasse EDGT (Adisp version).
 """
 
 def configure(context):
-    context.stage("data.hts.edgt_74.adisp.raw")
+    context.stage("data.hts.edgt_74.adisp_annecy.raw")
+    context.stage("data.hts.edgt_74.adisp_annemasse.cleaned")
 
     context.config("specific_day_scenario", "workday")
 
@@ -34,8 +35,8 @@ WEEKEND  = {"saturday", "sunday"}
 ALL_DAYS = WEEKDAYS | WEEKEND
 
 DAY_TO_INT = {
-    "monday": 1, "tuesday": 2, "wednesday": 3,
-    "thursday": 4, "friday": 5
+    "monday": "1", "tuesday": "2", "wednesday": "3",
+    "thursday": "4", "friday": "5"
 }
 
 
@@ -67,7 +68,7 @@ def filter_by_days(df, days):
 
 
 def execute(context):
-    df_households, df_persons, df_trips, df_spatial = context.stage("data.hts.edgt_74.adisp.raw")
+    df_households, df_persons, df_trips, df_spatial = context.stage("data.hts.edgt_74.adisp_annecy.raw")
 
     # Merge departement into households
     df_spatial        = df_spatial[["zone_id", "departement_id"]].copy()
@@ -87,7 +88,8 @@ def execute(context):
     df_trips["edgt_trip_id"]           = df_trips["NDEP"].astype(int)
 
     # Construct new IDs for households, persons and trips (which are unique globally)
-    df_households["household_id"] = np.arange(len(df_households))
+    #df_households["household_id"] = np.arange(len(df_households))
+    df_households["household_id"] = df_households["edgt_household_id"]
 
     # Select only records from the selected scenario day(s)
     days = resolve_days(context.config("specific_day_scenario"))
@@ -122,7 +124,10 @@ def execute(context):
         df_persons, df_households[["edgt_household_id", "household_id", "departement_id"]],
         on = ["edgt_household_id"]
     ).sort_values(by = ["household_id", "edgt_person_id"])
-    df_persons["person_id"] = np.arange(len(df_persons))
+
+    _, ann_pers, _ = context.stage("data.hts.edgt_74.adisp_annemasse.cleaned")
+    N = np.max(ann_pers["person_id"].values.tolist()) + 1
+    df_persons["person_id"] = np.arange(N, N + len(df_persons), 1)
 
     df_trips = pd.merge(
         df_trips, df_persons[["edgt_person_id", "edgt_household_id", "person_id", "household_id"]],

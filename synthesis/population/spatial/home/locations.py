@@ -1,7 +1,7 @@
-import data.spatial.utils as spatial_utils
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+
 
 def configure(context):
     context.stage("synthesis.population.spatial.home.zones")
@@ -9,6 +9,7 @@ def configure(context):
     context.config("home_location_source", "addresses")
     
     context.config("random_seed")
+
 
 def _sample_locations(context, args):
     # Extract data sets

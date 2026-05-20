@@ -1,10 +1,10 @@
 import numpy as np
 
 def configure(context):
-    context.stage("data.hts.edgt_74.adisp.filtered")
+    context.stage("data.hts.edgt_74.adisp_annemasse.filtered")
 
 def execute(context):
-    df_households, df_persons, df_trips = context.stage("data.hts.edgt_74.adisp.filtered")
+    df_households, df_persons, df_trips = context.stage("data.hts.edgt_74.adisp_annemasse.filtered")
 
     # EDGT defines multiple weights. For comparison with EGT we keep them in the
     # data set for the previous stages. In this one we override the weight,

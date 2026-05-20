@@ -13,16 +13,18 @@ def configure(context):
     context.config("data_path")
     context.config("ban_path", "ban_idf")
 
+
 BAN_DTYPES = {
     "code_insee": str,
     "x": float, 
     "y": float
 }
 
+
 def execute(context):
     # Find relevant departments
     df_codes = context.stage("data.spatial.codes").copy()
-    df_codes = df_codes[df_codes["iris_id"]!="CH"]
+    df_codes = df_codes[df_codes["iris_id"] != "CH"]
     requested_departments = set(df_codes["departement_id"].unique())
 
     # Load BAN
@@ -41,6 +43,7 @@ def execute(context):
 
         if len(df_partial) > 0:
             df_ban.append(df_partial)
+
     
     df_ban = pd.concat(df_ban)
     df_ban = gpd.GeoDataFrame(
@@ -52,6 +55,7 @@ def execute(context):
 
     return df_ban[["geometry"]]
 
+
 def find_ban(path):
     candidates = sorted(list(glob.glob("{}/*.csv.gz".format(path))))
 
@@ -59,6 +63,7 @@ def find_ban(path):
         raise RuntimeError("BAN data is not available in {}".format(path))
     
     return candidates
+
 
 def validate(context):
     paths = find_ban("{}/{}".format(context.config("data_path"), context.config("ban_path")))

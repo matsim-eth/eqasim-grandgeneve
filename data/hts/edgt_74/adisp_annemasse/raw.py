@@ -29,7 +29,7 @@ PERSON_COLUMNS = {
     "P7": str, "P12": str, # has_license, has_pt_subscription
     "PCSC": str, # socioprofessional_class
     "COEP": float, "COE1": float, # weights,
-    "JOUR": int # day of the week, 1 = monday to 5 = friday
+    "JOUR": str # day of the week, 1 = monday to 5 = friday
 }
 
 TRIP_COLUMNS = {
@@ -79,13 +79,15 @@ def execute(context):
     spatial1 = spatial1[["geometry", "zonefine", "depcom"]]
     spatial1.columns = ["geometry", "zone_id", "departement"]
     spatial1["departement_id"] = spatial1["departement"].astype(str).str[:2]
-    spatial1 = spatial1[["geometry", "zone_id", "departement_id"]]
+    spatial1["label"] = "intern"
+    spatial1 = spatial1[["geometry", "zone_id", "departement_id", "label"]]
 
     spatial2 = gpd.read_file(f"{edgt_path}/lil-1212/lil-1212.csv/Doc/SIG/EDGTFVG2016_ZonesExternes.TAB")
     spatial2 = spatial2.set_crs(epsg = 2154, allow_override=True)
     spatial2.columns = spatial2.columns.str.lower()
     spatial2 = spatial2[["geometry", "num_zf", "nom_d10"]]
-    spatial2.columns = ["geometry", "zone_id", "departement_id"]
+    spatial2["label"] = "extern"
+    spatial2.columns = ["geometry", "zone_id", "departement_id", "label"]
 
     df_spatial = gpd.GeoDataFrame(pd.concat([spatial1, spatial2]), crs=spatial1.crs)
 

@@ -13,7 +13,7 @@ has less than 200 inhabitants to the second case.
 """
 
 def configure(context):
-    context.stage("synthesis.population.sampled")
+    context.stage("synthesis.population.sampled_before_spatial_selection")
 
     context.stage("data.spatial.municipalities")
     context.stage("data.spatial.iris")
@@ -21,10 +21,11 @@ def configure(context):
 
     context.config("random_seed")
 
+
 def execute(context):
     random = np.random.default_rng(context.config("random_seed"))
 
-    df_households = context.stage("synthesis.population.sampled").drop_duplicates("household_id")[[
+    df_households = context.stage("synthesis.population.sampled_before_spatial_selection").drop_duplicates("household_id")[[
         "household_id", "commune_id", "iris_id", "departement_id"
     ]].copy().set_index("household_id")
 
@@ -94,7 +95,7 @@ def execute(context):
 
     # Finally, make sure that we have no invalid codes
     invalid_communes = set(df_households["commune_id"].unique()) - set(df_municipalities.index.unique())
-    invalid_iris = set(df_households["iris_id"].unique()) - set(df_iris.index.unique())
+    invalid_iris     = set(df_households["iris_id"].unique()) - set(df_iris.index.unique())
 
     assert len(invalid_communes) == 0
     assert len(invalid_iris) == 0

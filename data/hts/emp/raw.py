@@ -18,7 +18,7 @@ Q_TCM_MENAGE_COLUMNS = [
 ]
 
 K_INDIVIDU_COLUMNS = [
-    "IDENT_MEN", "IDENT_IND", "MDATE_jour", "pond_indC", "BPERMIS", "BCARTABON","ETUDIE"
+    "IDENT_MEN", "IDENT_IND", "MDATE_jour", "pond_indC", "BPERMIS", "BCARTABON","ETUDIE", "IMMODEP_A"
 ]
 
 Q_TCM_INDIVIDU_COLUMNS = ["ident_ind", "ident_men", "SEXE"]
@@ -27,7 +27,7 @@ Q_TCM_INDIVIDU_KISH_COLUMNS = ["AGE", "ident_ind", "CS24", "SITUA"]
 K_DEPLOC_COLUMNS = [
     "IDENT_MEN", "IDENT_IND", "MMOTIFDES", "MOTPREC",
     "MORIHDEP", "MDESHARR", "MDISTTOT_fin", "mtp",
-    "REG_ORI", "REG_DES", "nb_dep",
+    "REG_ORI", "REG_DES", "nb_dep", "MDATE_delai"
 ]
 
 def configure(context):
@@ -67,7 +67,10 @@ def execute(context):
             df_deploc = pd.read_csv(f,
                 sep = ",", encoding = "latin1", usecols = K_DEPLOC_COLUMNS,
                 )
-        
+            
+    individuals_with_immodepa1 = df_individu[df_individu["IMMODEP_A"]==1]["IDENT_IND"]
+    df_deploc = df_deploc[~df_deploc["IDENT_IND"].isin(individuals_with_immodepa1)]
+            
     return df_individu, df_tcm_individu,df_tcm_individu_kish, df_menage, df_tcm_menage, df_deploc
 
 def validate(context):

@@ -48,23 +48,18 @@ def execute(context):
     df_individu, df_tcm_individu,df_tcm_individu_kish, df_menage, df_tcm_menage, df_deploc = context.stage("data.hts.emp.raw")
 
     # Make copies
-    df_persons = pd.DataFrame(df_tcm_individu, copy = True).rename(columns={"ident_ind":"IDENT_IND", "ident_men":"IDENT_MEN"})
+    df_persons    = pd.DataFrame(df_tcm_individu, copy = True).rename(columns={"ident_ind":"IDENT_IND", "ident_men":"IDENT_MEN"})
     df_households = pd.DataFrame(df_tcm_menage, copy = True).rename(columns={ "ident_men":"IDENT_MEN"})
-    df_trips = pd.DataFrame(df_deploc, copy = True)
+    df_trips      = pd.DataFrame(df_deploc, copy = True)
 
     # Keep only households / persons that were surveyed during weekday.
-    valid_households = df_individu.loc[
-        ~df_individu["MDATE_jour"].isin(("samedi", "dimanche")), "IDENT_MEN"
-    ]
-    df_persons = df_persons.loc[df_persons["IDENT_MEN"].isin(valid_households)].copy()
-    df_households = df_households.loc[df_households["IDENT_MEN"].isin(valid_households)].copy()
-    df_trips = df_trips.loc[df_trips["IDENT_MEN"].isin(valid_households)].copy()
+    valid_households = df_individu.loc[~df_individu["MDATE_jour"].isin(("samedi", "dimanche")), "IDENT_MEN"]
+    df_persons       = df_persons.loc[df_persons["IDENT_MEN"].isin(valid_households)].copy()
+    df_households    = df_households.loc[df_households["IDENT_MEN"].isin(valid_households)].copy()
+    df_trips         = df_trips.loc[df_trips["IDENT_MEN"].isin(valid_households)].copy()
 
     # Merge in additional information from EMP
-    df_households = pd.merge(df_households, df_menage[[
-        "IDENT_MEN", "JNBVELOAD",
-    "JNBVEH", "JNBMOTO", "JNBCYCLO"
-    ]], on = "IDENT_MEN", how = "left")
+    df_households = pd.merge(df_households, df_menage[["IDENT_MEN", "JNBVELOAD", "JNBVEH", "JNBMOTO", "JNBCYCLO"]], on = "IDENT_MEN", how = "left")
 
     # df_tcm_individu_kish contains data for the persons that were actually surveyed (is_kish=True).
     df_persons = pd.merge(
@@ -80,10 +75,10 @@ def execute(context):
     ]], on = "IDENT_IND", how = "left")
 
     # Transform original IDs to integer (they are hierarchichal)
-    df_persons["emp_person_id"] = df_persons["IDENT_IND"].astype(int)
-    df_persons["emp_household_id"] = df_persons["IDENT_MEN"].astype(int)
+    df_persons["emp_person_id"]       = df_persons["IDENT_IND"].astype(int)
+    df_persons["emp_household_id"]    = df_persons["IDENT_MEN"].astype(int)
     df_households["emp_household_id"] = df_households["IDENT_MEN"].astype(int)
-    df_trips["emp_person_id"] = df_trips["IDENT_IND"].astype(int)
+    df_trips["emp_person_id"]         = df_trips["IDENT_IND"].astype(int)
 
     # Construct new IDs for households, persons and trips (which are unique globally)
     df_households["household_id"] = np.arange(len(df_households))
@@ -101,8 +96,8 @@ def execute(context):
     df_trips["trip_id"] = np.arange(len(df_trips))
 
     # Weight
-    df_persons["person_weight"] = df_persons["pond_indC"].astype(float)
-    df_persons["trip_weight"] = df_persons["pond_indC"].astype(float)
+    df_persons["person_weight"]       = df_persons["pond_indC"].astype(float)
+    df_persons["trip_weight"]         = df_persons["pond_indC"].astype(float)
     df_households["household_weight"] = df_households["pond_menC"].astype(float)
 
     # Clean age
@@ -125,7 +120,7 @@ def execute(context):
 
     # Clean departement
     df_households["departement_id"] = df_households["DEP_RES"].fillna("undefined").astype("category")
-    df_persons["departement_id"] = df_persons["DEP_RES"].fillna("undefined").astype("category")
+    df_persons["departement_id"]    = df_persons["DEP_RES"].fillna("undefined").astype("category")
 
     df_trips["origin_departement_id"] = '00'
     df_trips["destination_departement_id"] = '00'

@@ -1,7 +1,3 @@
-from tqdm import tqdm
-import pandas as pd
-import numpy as np
-
 """
 This stage filters out census observations which live or work outside of
 Île-de-France.
@@ -11,12 +7,13 @@ def configure(context):
     context.stage("data.census.cleaned")
     context.stage("data.spatial.codes")
 
+
 def execute(context):
-    df = context.stage("data.census.cleaned")
+    df   = context.stage("data.census.cleaned")
 
     # Filter requested codes
     df_codes = context.stage("data.spatial.codes").copy()
-    df_codes = df_codes[df_codes["iris_id"]!="CH"]
+    df_codes = df_codes[df_codes["iris_id"] != "CH"]
 
     requested_departements = df_codes["departement_id"].unique()
     df = df[df["departement_id"].isin(requested_departements)]
