@@ -26,7 +26,7 @@ config:
   ##############################
   
   ## Number of CPUs to use
-  processes: 4
+  processes: 48
 
   ################
   # Random seeds #

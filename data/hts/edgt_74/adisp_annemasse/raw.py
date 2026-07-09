@@ -43,7 +43,7 @@ TRIP_COLUMNS = {
 
 def execute(context):
     data_path   = context.config("data_path")
-    edgt_path   = f"{data_path}/edgt_2017_annemasse/adisp"
+    edgt_path   = f"{data_path}/edgt_2017/edgt_2017_annemasse/adisp"
 
     df_households1 = pd.read_csv(f"{edgt_path}/lil-1212/lil-1212.csv/Csv/Fichiers_Standard_Face_a_face/annemasse_2016_std_faf_men.csv", sep = ";", usecols = list(HOUSEHOLD_COLUMNS.keys()), dtype = HOUSEHOLD_COLUMNS)
     df_households2 = pd.read_csv(f"{edgt_path}/lil-1212/lil-1212.csv/Csv/Fichiers_Standard_Telephonique/annemasse_2016_std_tel_men.csv", sep = ";", usecols = list(HOUSEHOLD_COLUMNS.keys()), dtype = HOUSEHOLD_COLUMNS)
