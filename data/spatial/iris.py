@@ -50,8 +50,8 @@ def execute(context):
     hts            = context.config("hts")
     edgt74_version = context.config("edgt74_version")
     if hts == "edgt_74" and edgt74_version == "adisp":
-        envelope_annemasse = unary_union(gpd.read_file("{}/{}".format(context.config("data_path"), "edgt_2017_annemasse/annemasse_extent.gpkg"), crs = "EPSG:2154").geometry.buffer(1000))
-        envelope_annecy    = unary_union(gpd.read_file("{}/{}".format(context.config("data_path"), "edgt_2017_annecy/annecy_extent.gpkg"), crs = "EPSG:2154").geometry.buffer(1000))
+        envelope_annemasse = unary_union(gpd.read_file("{}/{}".format(context.config("data_path"), "edgt_2017/edgt_2017_annemasse/annemasse_extent.gpkg"), crs = "EPSG:2154").geometry.buffer(1000))
+        envelope_annecy    = unary_union(gpd.read_file("{}/{}".format(context.config("data_path"), "edgt_2017/edgt_2017_annecy/annecy_extent.gpkg"), crs = "EPSG:2154").geometry.buffer(1000))
 
         df_iris["edgt_area"] = None
         df_iris.loc[df_iris.geometry.within(envelope_annemasse), "edgt_area"] = "annemasse"

@@ -103,12 +103,12 @@ FILES = [
 
 def validate(context):
     data_path   = context.config("data_path")
-    edgt_path   = f"{data_path}/edgt_2017_annecy/adisp"
+    edgt_path   = f"{data_path}/edgt_2017/edgt_2017_annecy/adisp"
     
     for name in FILES:
         current_path = f"{edgt_path}/{name}"
         if not os.path.exists(current_path):
-            raise RuntimeError("File missing from EDGT: %s" % name)
+            raise RuntimeError("File missing from EDGT: %s" % current_path)
 
     return [
         os.path.getsize(f"{edgt_path}/{name}")
