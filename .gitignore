@@ -17,4 +17,5 @@ docs/_build
 
 run_*.sh
 slurm*
+catboost_info
 

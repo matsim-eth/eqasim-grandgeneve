@@ -201,7 +201,7 @@ def build_unified_zoning(context):
 
     annemasse_zf       = _make_zone_id(annemasse_zf, "AM", "ZoneFine")
     annemasse_external = _make_zone_id(annemasse_external, "AME", "Num_ZF", fallback_columns = ("Id_com", "NOM_DTIR"))
-    annecy_zf          = _make_zone_id(annecy_zf, "AN", "Zf")
+    annecy_zf          = _make_zone_id(annecy_zf, "AC", "Zf")
 
     annemasse_zf       = _keep_and_rename_columns(annemasse_zf, "annemasse_zf")
     annemasse_external = _keep_and_rename_columns(annemasse_external, "annemasse_external")
@@ -438,8 +438,13 @@ def execute(context):
     points = build_generator_points(context, zones)
     code_to_dtir = read_external_code_to_dtir(context)
 
+    zones.loc[zones["dtir_name"] == "Canton du Valais", "d30_name"] = "Canton du Valais"
+
     print(f"Built {len(zones)} unified zones")
     print(f"Matched {points['zone_id'].notna().sum()} / {len(points)} generator points to a zone")
+
+    context_path = context.path()
+    zones.to_file(f"{context_path}/zones_unified.gpkg")
 
     return zones, points, code_to_dtir
 

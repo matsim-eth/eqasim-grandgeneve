@@ -26,7 +26,7 @@ def configure(context):
     context.config("data_path")
     context.stage("data.spatial.municipalities")
     context.config("income_com_path", "filosofi_2021/indic-struct-distrib-revenu-2021-COMMUNES_XLSX.zip")
-    context.config("income_com_xlsx", "FILO2021_DISP_COM.xlsx")
+    context.config("income_com_xlsx", "FILO2021_DEC_COM.xlsx")
     context.config("income_year", 21)
 
 

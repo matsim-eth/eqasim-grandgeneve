@@ -2,12 +2,13 @@
 ## based on the synpp package
 
 # This is the path to a directory where the pipeline can store temporary data
-working_directory: /home/asallard/Euler_scratch/FR_geneva_output
+working_directory: /home/asallard/Documents/Tests/caches/cache_geneva
 
 # This section defines which parts of the pipeline should be run
 run:
   #- data.locations_CH.statent.destinations # To create the output population in the output_path (see below)
-  # - data.hts.selected
+  # - data.hts.edgt_74.adisp_merge.merge
+  #- synthesis.population.cross_perimeter
   - synthesis.output
   # - analysis.reference.hts.chains
   # - synthesis.population.sampled
@@ -81,7 +82,7 @@ config:
   #######################
   
   ## output folder
-  output_path: /home/asallard/Euler_scratch/FR_geneva_output
+  output_path: /home/asallard/Documents/Tests/outputs/output_geneva
 
   ## output prefix, appended to file names
   output_prefix: cmdp_

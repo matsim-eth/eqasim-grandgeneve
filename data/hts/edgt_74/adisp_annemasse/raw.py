@@ -1,5 +1,3 @@
-from pandas.core.frame import DataFrame
-import numpy as np
 import pandas as pd
 import geopandas as gpd
 import os
@@ -25,9 +23,16 @@ PERSON_COLUMNS = {
     "ECH": str, "PER": int, "ZFP": str, # id
     "PENQ": str, # respondents of travel questionary section
     "P2": int, "P4": int, # sex, age
+    "P3": str, # position in household (reference person, spouse, child, ...)
+    "P8": str, # highest education level attained
     "P9": str, # employed, studies
     "P7": str, "P12": str, # has_license, has_pt_subscription
     "PCSC": str, # socioprofessional_class
+    "P14": str, # teleworks / studies from home
+    "P16": str, # car availability for the commute
+    "P19": str, "P20": str, "P21": str, "P22": str, "P23": str, "P24": str, # frequency of use: walk, bike (driver), motorized 2-wheeler (driver), car (driver), car (passenger), urban PT
+    "P25": str, # made a trip "yesterday" within the survey area / absent / etc.
+    "P26": str, # work situation "yesterday" (worked out, teleworked, on leave, ...)
     "COEP": float, "COE1": float, # weights,
     "JOUR": str # day of the week, 1 = monday to 5 = friday
 }

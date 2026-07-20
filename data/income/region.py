@@ -10,7 +10,7 @@ Loads the regional aggregated income distribution.
 def configure(context):
     context.config("data_path")
     context.config("income_reg_path", "filosofi_2021/indic-struct-distrib-revenu-2021-SUPRA_XLSX.zip")
-    context.config("income_reg_xlsx", "FILO2021_DISP_REG.xlsx")
+    context.config("income_reg_xlsx", "FILO2021_DEC_REG.xlsx")
     context.config("income_year", 21)
 
 def execute(context):

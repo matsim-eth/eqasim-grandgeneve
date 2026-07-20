@@ -1,8 +1,3 @@
-import pandas as pd
-
-
-
-
 def configure(context):
     context.stage("synthesis.population.sampled_before_spatial_selection")
     context.stage("synthesis.population.spatial.home.zones")
@@ -24,9 +19,7 @@ def execute(context):
             homes = homes.merge(iris[["iris_id", "edgt_area"]], on = "iris_id", how = "left")
             population = population.merge(homes[["household_id", "edgt_area"]], on = "household_id", how = "left")
 
-            print(len(population))
             population = population[population["edgt_area"].notna()]
-            print(len(population))
 
             print(population.groupby("edgt_area", dropna = False)["person_id"].count())
 

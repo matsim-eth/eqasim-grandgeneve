@@ -1,13 +1,7 @@
-from tqdm import tqdm
-import itertools
 import numpy as np
 import pandas as pd
-import numba
 
-import data.hts.egt.cleaned
-import data.hts.entd.cleaned
-
-import multiprocessing as mp
+import data.hts.edgt_74.adisp_merge.merge as edgt74_merge
 
 """
 This stage fuses census data with HTS data.
@@ -21,19 +15,43 @@ def configure(context):
     context.stage("synthesis.population.income.selected")
     context.config("extra_enriched_attributes", [])
 
-    hts = context.config("hts")
     context.stage("data.hts.selected", alias = "hts")
 
+    if context.config("hts") == "edgt_74":
+        context.config("edgt74_version", default = "adisp")
+
+        if context.config("edgt74_version") == "adisp":
+            # Inputs needed to compute synthesis.population.cross_perimeter's
+            # features from the real synthesized population (home location,
+            # census area) rather than by reusing the HTS respondent's own
+            # values.
+            context.stage("data.hts.edgt_74.adisp_merge.zones")
+            context.stage("data.spatial.ch.cantons")
+            context.stage("synthesis.population.spatial.home.locations")
+            context.stage("synthesis.population.cross_perimeter")
+
+            context.config("random_seed")
+
+
 def execute(context):
+    is_edgt74_adisp = context.config("hts") == "edgt_74" and context.config("edgt74_version") == "adisp"
+
     # Select population columns
-    df_population = context.stage("synthesis.population.sampled")[[
+    population_columns = [
         "person_id", "household_id",
         "census_person_id", "census_household_id",
         "age", "sex", "employed", "studies",
         "number_of_cars", "number_of_motorcycles", "number_of_vehicles", "use_motorcycle",
         "household_size", "consumption_units",
         "socioprofessional_class"
-    ]]
+    ]
+
+    if is_edgt74_adisp:
+        # edgt_area is assigned spatially (data.spatial.iris) from the real
+        # home IRIS, not learnt from the HTS
+        population_columns += ["edgt_area"]
+
+    df_population = context.stage("synthesis.population.sampled")[population_columns]
 
     # Attach matching information
     df_matching   = context.stage("synthesis.population.matched")
@@ -49,6 +67,13 @@ def execute(context):
     df_hts_households = df_hts_households.rename(columns = { "household_id": "hts_household_id" })
 
     columns    = ["hts_id", "hts_household_id", "has_license", "has_pt_subscription", "is_passenger"]
+
+    if is_edgt74_adisp:
+        # Highest education attained (P8): no census equivalent, so unlike
+        # is_annemasse/log_dist_perimeter below it can only come from the
+        # matched HTS respondent.
+        columns += ["P8"]
+
     extra_cols = context.config("extra_enriched_attributes")
 
     assert isinstance(extra_cols, list), "`extra_enriched_attributes` parameter must be a list"
@@ -60,6 +85,23 @@ def execute(context):
     # Attach income
     df_income     = context.stage("synthesis.population.income.selected")
     df_population = pd.merge(df_population, df_income[["household_id", "household_income"]], on = "household_id")
+
+    if is_edgt74_adisp:
+        # Distance from the real (synthesized) home location to the survey
+        # perimeter border, instead of reusing the HTS respondent's own value
+        df_zones, _, _ = context.stage("data.hts.edgt_74.adisp_merge.zones")
+        df_cantons     = context.stage("data.spatial.ch.cantons")
+        df_homes       = context.stage("synthesis.population.spatial.home.locations")
+
+        perimeter = edgt74_merge.build_perimeter_geometry(df_zones, df_cantons)
+        df_homes  = df_homes.to_crs(df_zones.crs)
+
+        df_distance = pd.DataFrame({
+            "household_id": df_homes["household_id"].values,
+            "distance_to_perimeter_border": df_homes.geometry.distance(perimeter.boundary).values
+        })
+
+        df_population = pd.merge(df_population, df_distance, on = "household_id")
 
     # Check consistency
     final_size          = len(df_population)
@@ -100,5 +142,28 @@ def execute(context):
     df_population.loc[df_population["age"].between(11,14),"age_range"] = "middle_school"
     df_population.loc[df_population["age"].between(15,17),"age_range"] = "high_school"
     df_population["age_range"] = df_population["age_range"].astype("category")
-    
+
+    if is_edgt74_adisp:
+        # synthesis.population.cross_perimeter features: is_annemasse and
+        # log_dist_perimeter come from the real synthesized population above,
+        # has_driving_license and educ_ord have no census equivalent and are
+        # carried over from the matched HTS respondent.
+        df_population["is_annemasse"]        = (df_population["edgt_area"] == "annemasse").astype(int)
+        df_population["log_dist_perimeter"]  = np.log1p(df_population["distance_to_perimeter_border"])
+        df_population["has_driving_license"] = df_population["has_license"].astype(int)
+        df_population["educ_ord"]            = pd.to_numeric(df_population["P8"], errors = "coerce").map(edgt74_merge.EDUCATION_ORDINAL_MAP)
+
+        # Score each synthesized person with the fitted cross-perimeter logit
+        # (synthesis.population.cross_perimeter) and draw is_crossperim_person
+        # from the resulting probability, rather than carrying over the HTS
+        # respondent's own observed value.
+        _, _, params = context.stage("synthesis.population.cross_perimeter")
+        features = [feature for feature in params.index if feature != "const"]
+
+        logit       = params["const"] + df_population[features].values.astype(float) @ params[features].values
+        probability = 1.0 / (1.0 + np.exp(-logit))
+
+        random = np.random.default_rng(context.config("random_seed"))
+        df_population["is_crossperim_person"] = random.random(len(df_population)) < probability
+
     return df_population
