@@ -3,6 +3,7 @@ import shapely.geometry as geo
 import data.spatial.utils as spatial_utils
 import geopandas as gpd
 
+
 """
 This stage cleans the enterprise census:
   - Filter out enterprises that do not have a valid municipality or IRIS
@@ -10,14 +11,15 @@ This stage cleans the enterprise census:
   - Simplify activity types for all enterprises
 """
 
+
 def configure(context):
     context.stage("data.bpe.raw")
-
     context.stage("data.spatial.iris")
     context.stage("data.spatial.municipalities")
-    context.config("education_location_source","bpe")
 
+    context.config("education_location_source","bpe")
     context.config("bpe_random_seed", 0)
+
 
 ACTIVITY_TYPE_MAP = [
     ("A", "other"),         # Police, post office, etc ...
@@ -31,6 +33,7 @@ ACTIVITY_TYPE_MAP = [
     ("F", "leisure"),       # Sports & Culture
     ("G", "other"),         # Tourism, hotels, etc. (Hôtel = G102)
 ]
+
 
 def find_outside(context, commune_id):
     df_municipalities = context.data("df_municipalities")
@@ -46,6 +49,7 @@ def find_outside(context, commune_id):
 
     context.progress.update()
     return indices
+
 
 def execute(context):
     df = context.stage("data.bpe.raw")

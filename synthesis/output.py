@@ -3,23 +3,19 @@ import gzip
 import geopandas as gpd
 import pandas as pd
 import shapely.geometry as geo
-import os, datetime, json
+import os
 import sqlite3
 import math
 import numpy as np
-from analysis.synthesis.population import ANALYSIS_FOLDER
+
 
 def configure(context):
 
     context.stage("synthesis.population.enriched")
-
     context.stage("synthesis.population.activities")
     context.stage("synthesis.population.trips")
-
     context.stage("synthesis.vehicles.vehicles")
-
     context.stage("synthesis.population.spatial.locations")
-
     context.stage("documentation.meta_output")
 
     context.config("output_path")
@@ -37,6 +33,7 @@ def validate(context):
 
     if not os.path.isdir(output_path):
         raise RuntimeError("Output directory must exist: %s" % output_path)
+
 
 def clean_gpkg(path):
     '''
@@ -62,9 +59,10 @@ def clean_gpkg(path):
     conn.commit()
     conn.close()
 
+
 def execute(context):
-    output_path = context.config("output_path")
-    output_prefix = context.config("output_prefix")
+    output_path    = context.config("output_path")
+    output_prefix  = context.config("output_prefix")
     output_formats = context.config("output_formats")
 
     # Prepare persons
@@ -95,34 +93,46 @@ def execute(context):
     df_activities["preceding_trip_index"] = df_activities["following_trip_index"].shift(1)
     df_activities.loc[df_activities["is_first"], "preceding_trip_index"] = -1
     df_activities["preceding_trip_index"] = df_activities["preceding_trip_index"].astype(int)
+    
     # Prepare spatial data sets
     df_locations = context.stage("synthesis.population.spatial.locations")[[
-        "person_id",  "iris_id", "commune_id","departement_id","region_id","activity_index", "location_id", "geometry"
+        "person_id",
+        "iris_id", "commune_id", "departement_id", "region_id",
+        "activity_index",
+        "location_id", "geometry",
+        "municipality_type",
+        "employee_density", "companies_density", "population_density", "ovgk"
     ]]
 
     df_activities = pd.merge(df_activities, df_locations[[
-        "person_id", "iris_id", "commune_id","departement_id","region_id","activity_index", "location_id", "geometry"
+        "person_id",
+        "iris_id", "commune_id", "departement_id", "region_id",
+        "activity_index", "location_id", "geometry",
+        "municipality_type",
+        "employee_density", "companies_density", "population_density", "ovgk"
     ]], how = "left", on = ["person_id", "activity_index"])
 
     # Prepare spatial activities
     df_spatial = gpd.GeoDataFrame(df_activities[[
             "person_id", "household_id", "activity_index",
-            "iris_id", "commune_id","departement_id","region_id",
+            "iris_id", "commune_id", "departement_id", "region_id",
             "preceding_trip_index", "following_trip_index",
             "purpose", "start_time", "end_time",
-            "is_first", "is_last", "location_id", "geometry"
+            "is_first", "is_last", "location_id", "geometry", "municipality_type",
+            "employee_density", "companies_density", "population_density", "ovgk"
         ]], crs = df_locations.crs)
-    df_spatial = df_spatial.astype({'purpose': 'str', "departement_id": 'str',
+    df_spatial = df_spatial.astype({"purpose": "str", "departement_id": "str",
                                     "iris_id": "str", "commune_id": "str",
-                                    "region_id": "str"})
+                                    "region_id": "str", "ovgk": "str"})
 
     # Write activities
     df_activities = df_activities[[
         "person_id", "household_id", "activity_index",
-        "iris_id", "commune_id","departement_id","region_id",
+        "iris_id", "commune_id", "departement_id", "region_id",
         "preceding_trip_index", "following_trip_index",
         "purpose", "start_time", "end_time",
-        "is_first", "is_last", "location_id", "geometry"
+        "is_first", "is_last", "location_id", "geometry", "municipality_type",
+        "employee_density", "companies_density", "population_density", "ovgk"
     ]]
 
     if "csv" in output_formats:
@@ -135,15 +145,18 @@ def execute(context):
         columns = { "household_income": "income" }
     ).drop_duplicates("household_id")
 
-    df_households = pd.merge(df_households,df_activities[df_activities["purpose"] == "home"][["household_id",
-        "iris_id", "commune_id","departement_id","region_id"]].drop_duplicates("household_id"),how="left")
+    df_households = pd.merge(df_households, df_activities[df_activities["purpose"] == "home"][["household_id",
+                                                                                               "iris_id", "commune_id", "departement_id", "region_id", "municipality_type",
+                                                                                               "employee_density", "companies_density", "population_density", "ovgk"]].drop_duplicates("household_id"),how="left")
     df_households = df_households[[
-        "household_id","iris_id", "commune_id", "departement_id","region_id",
+        "household_id","iris_id", "commune_id", "departement_id", "region_id",
         "car_availability", "bike_availability", "use_motorcycle",
         "number_of_vehicles", "number_of_bikes",
         "income",
-        "census_household_id"
+        "census_household_id", "municipality_type",
+        "employee_density", "companies_density", "population_density", "ovgk"
     ]]
+    
     if "csv" in output_formats:
         df_households.to_csv("%s/%shouseholds.csv" % (output_path, output_prefix), sep = ";", index = None, lineterminator = "\n")
     if "parquet" in output_formats:
@@ -237,7 +250,8 @@ def execute(context):
     df_spatial_homes = df_spatial[
         df_spatial["purpose"] == "home"
     ].drop_duplicates("household_id")[[
-        "household_id","iris_id", "commune_id","departement_id","region_id", "geometry"
+        "household_id","iris_id", "commune_id","departement_id","region_id", "geometry",
+        "employee_density", "companies_density", "population_density", "ovgk"
     ]]
     if "gpkg" in output_formats:
         path = "%s/%shomes.gpkg" % (output_path, output_prefix)

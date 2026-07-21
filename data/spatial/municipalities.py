@@ -1,14 +1,10 @@
-import numpy as np
-import pandas as pd
-import geopandas as gpd
-import os
-
 """
 Provides the municipality zoning system.
 """
 
 def configure(context):
     context.stage("data.spatial.iris")
+
 
 def execute(context):
     df_iris = context.stage("data.spatial.iris")

@@ -5,9 +5,11 @@ import py7zr
 import glob
 from shapely.ops import unary_union
 
+
 """
 Loads the IRIS zoning system.
 """
+
 
 def configure(context):
     context.config("data_path")
@@ -59,20 +61,12 @@ def execute(context):
 
         df_iris.loc[df_iris["iris_id"] == "742120000", "edgt_area"] = "annemasse"
 
-        #df_iris = df_iris[df_iris["edgt_area"].notna()]
-
 
     df_iris["iris_id"]    = df_iris["iris_id"].astype("category")
     df_iris["commune_id"] = df_iris["commune_id"].astype("category")
 
     # Merge with requested codes and verify integrity
     df_iris = pd.merge(df_iris, df_codes, on = ["iris_id", "commune_id"])    
-
-    #requested_iris = set(df_codes["iris_id"].unique())
-    #merged_iris    = set(df_iris["iris_id"].unique())
-
-    #if requested_iris != merged_iris:
-    #    raise RuntimeError("Some IRIS are missing: %s" % (requested_iris - merged_iris,))
 
     return df_iris
 

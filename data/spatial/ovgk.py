@@ -1,0 +1,398 @@
+from pathlib import Path
+import zipfile
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import logging
+import shapely.geometry as geo
+from joblib import Parallel, delayed
+
+logger = logging.getLogger("synpp")
+
+DIST_BINS            = [300, 500, 750, 1000]
+RAIL_TYPES           = {2, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117}
+TRAM_BUS_TYPES       = {0, 900, 1, 400, 401, 402, 3, 700, 702, 704, 705, 710, 712, 715, 716, 717, 4}
+CABLE_TYPES          = {6, 1300, 1301, 1302, 1303, 1304, 1305, 1306, 1307, 7, 1400, 1401, 1402}
+UNCLASSIFIED_TYPES   = {202, 1500, 1700}
+BAHNKNOTEN_MIN_LINES = 2
+
+COUNTING_WINDOW_START_MIN = 360
+COUNTING_WINDOW_END_MIN   = 1200
+KURSINTERVALL_WINDOW_MIN  = COUNTING_WINDOW_END_MIN - COUNTING_WINDOW_START_MIN
+
+CAT_RANK = {"I": 0, "II": 1, "III": 2, "IV": 3, "V": 4, "X": 5}
+
+# ARE spec reference day: a normal weekday outside holidays/tourist high season
+# (Mittwoch der Kalenderwoche 12).
+REFERENCE_DATE = "2024/03/20"
+
+
+def read_gtfs(gtfs_path):
+    def read_files(open_fn, namelist_fn):
+        stops      = pd.read_csv(open_fn("stops.txt"))
+        routes     = pd.read_csv(open_fn("routes.txt"))
+        trips      = pd.read_csv(open_fn("trips.txt"))
+        stop_times = pd.read_csv(open_fn("stop_times.txt"))
+
+        calendar       = pd.read_csv(open_fn("calendar.txt"))       if "calendar.txt"       in namelist_fn() else None
+        calendar_dates = pd.read_csv(open_fn("calendar_dates.txt")) if "calendar_dates.txt" in namelist_fn() else None
+
+        return stops, routes, trips, stop_times, calendar, calendar_dates
+
+    gtfs_path = Path(gtfs_path)
+
+    if gtfs_path.is_dir():
+        def open_fn(filename):
+            return open(gtfs_path / filename, "rb")
+        def namelist_fn():
+            return [f.name for f in gtfs_path.iterdir()]
+        return read_files(open_fn, namelist_fn)
+
+    elif zipfile.is_zipfile(gtfs_path):
+        with zipfile.ZipFile(gtfs_path) as zf:
+            def open_fn(filename):
+                return zf.open(filename)
+            def namelist_fn():
+                return zf.namelist()
+            return read_files(open_fn, namelist_fn)
+
+    else:
+        raise ValueError(f"gtfs_path must be a directory or a .zip file, got: {gtfs_path}")
+
+
+def service_ids_for_date(calendar, calendar_dates, target_date = None):
+    d = pd.to_datetime(target_date) if target_date else None
+
+    if d is not None:
+        weekday = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][d.dayofweek]
+    else:
+        weekday = "wednesday"
+
+    # Base set from calendar.txt
+    if calendar is not None:
+        active = set(calendar.loc[calendar[weekday] == 1, "service_id"].astype(str))
+    else:
+        active = set()
+
+    # Apply exceptions from calendar_dates.txt
+    if calendar_dates is not None and d is not None:
+        ds = int(d.strftime("%Y%m%d"))
+        day_exceptions = calendar_dates[calendar_dates["date"] == ds]
+
+        # exception_type 1 = added, 2 = removed
+        adds = day_exceptions.loc[day_exceptions["exception_type"] == 1, "service_id"].astype(str)
+        rems = day_exceptions.loc[day_exceptions["exception_type"] == 2, "service_id"].astype(str)
+
+        active.update(adds)
+        active.difference_update(rems)
+
+    return sorted(active)
+
+
+def classify_routes(routes):
+    r    = routes.copy()
+    mode = r["route_type"].fillna(-1).astype(int)
+
+    r["mode_group"] = "UNCLASSIFIED"
+    r.loc[mode.isin(RAIL_TYPES),         "mode_group"] = "A"
+    r.loc[mode.isin(TRAM_BUS_TYPES),     "mode_group"] = "B"
+    r.loc[mode.isin(CABLE_TYPES),        "mode_group"] = "C"
+    r.loc[mode.isin(UNCLASSIFIED_TYPES), "mode_group"] = "UNCLASSIFIED"
+
+    known_types = RAIL_TYPES | TRAM_BUS_TYPES | CABLE_TYPES | UNCLASSIFIED_TYPES
+    unmapped    = mode[~mode.isin(known_types)]
+    if len(unmapped) > 0:
+        logger.warning(
+            "OVGK: %d routes have unmapped route_type values %s; treating as UNCLASSIFIED",
+            len(unmapped), sorted(unmapped.unique())
+        )
+
+    return r[["route_id", "mode_group"]]
+
+
+def parse_time_to_min(s):
+    parts = s.str.split(":", expand=True).astype(int)
+    return parts[0] * 60 + parts[1] + parts[2] / 60
+
+
+def interval_and_mode_to_stopcat(stop_cat_mode, interval_min):
+    if pd.isna(interval_min):
+        return None
+
+    THRESHOLDS = [(5, "I", "I", "II"),
+                  (10, "I", "II", "III"),
+                  (20, "II", "III", "IV"),
+                  (40, "III", "IV", "V"),
+                  (60, "IV", "V", "V"),
+                  (float("inf"), "X", "X", "X")]
+
+    for upper, rail_1, rail_2, b in THRESHOLDS:
+        if interval_min < upper:
+            if stop_cat_mode == "A1":
+                return rail_1
+            elif stop_cat_mode == "A2":
+                return rail_2
+            elif stop_cat_mode == "B":
+                return b
+            else:
+                logger.warning("OVGK: unexpected stop_cat_mode %r", stop_cat_mode)
+                return None
+
+    return "X"
+
+
+def estimate_group_departures(st_timed, group_label):
+    g = st_timed[st_timed["mode_group"] == group_label]
+    if g.empty:
+        return pd.DataFrame(columns=["station_id", "departures"])
+
+    dir_counts = g.groupby("station_id")["direction_id"].nunique()
+    raw        = g.groupby("station_id").size()
+
+    departures = pd.Series(index=raw.index, dtype=float)
+    two_dir    = dir_counts[dir_counts >= 2].index
+    one_dir    = dir_counts.index.difference(two_dir)  # single direction, or missing direction_id
+
+    departures.loc[two_dir] = raw.loc[two_dir] / 2.0
+    departures.loc[one_dir] = raw.loc[one_dir]
+
+    return departures.reset_index().rename(columns={0: "departures"}).rename(columns={"index": "station_id"})
+
+
+def compute_stop_category(gtfs_path, date):
+    stops, routes, trips, stop_times, calendar, calendar_dates = read_gtfs(gtfs_path)
+
+    routes2 = classify_routes(routes) # Find route mode
+    trips2  = trips.merge(routes2, on = "route_id", how = "left")
+
+    if calendar is not None and "service_id" in trips2.columns:
+        service_ids = service_ids_for_date(calendar, calendar_dates, date)
+        if service_ids is not None:
+            trips2 = trips2[trips2["service_id"].astype(str).isin(service_ids)]
+
+    stop_times2    = stop_times.merge(trips2[["trip_id", "route_id", "mode_group", "direction_id"]], on="trip_id", how="inner")
+    stop_times2    = stop_times2[stop_times2["mode_group"] != "UNCLASSIFIED"]  # drop non-spec trips entirely
+    stop_to_parent = stops.set_index("stop_id").apply(lambda r: r["parent_station"] if pd.notna(r.get("parent_station")) and r.get("parent_station") != "" else r.name, axis=1)
+
+    stop_times2["station_id"] = stop_times2["stop_id"].map(stop_to_parent).fillna(stop_times2["stop_id"])
+
+    route_names = routes[["route_id", "route_short_name"]].copy()
+    route_names["route_key"] = route_names["route_short_name"].fillna(route_names["route_id"]).astype(str)
+
+    rail_st = stop_times2[stop_times2["mode_group"] == "A"].merge(route_names[["route_id", "route_key"]], on="route_id", how="left")
+    rail_lines_per_station = rail_st.groupby("station_id")["route_key"].nunique().reset_index().rename(columns={"route_key": "num_rail_lines"})
+
+    cable_stations = set(stop_times2.loc[stop_times2["mode_group"] == "C", "station_id"].unique())
+
+    st_timed = stop_times2.copy()
+    st_timed["dep_min"] = parse_time_to_min(stop_times2["departure_time"].astype(str))
+    st_timed = st_timed[(st_timed["dep_min"] >= COUNTING_WINDOW_START_MIN) & (st_timed["dep_min"] < COUNTING_WINDOW_END_MIN)]
+
+    dep_a = estimate_group_departures(st_timed, "A").rename(columns={"departures": "departures_a"})
+    dep_b = estimate_group_departures(st_timed, "B").rename(columns={"departures": "departures_b"})
+
+    dep_a["A_Intervall"] = KURSINTERVALL_WINDOW_MIN / dep_a["departures_a"]
+    dep_b["B_Intervall"] = KURSINTERVALL_WINDOW_MIN / dep_b["departures_b"]
+
+    # Assemble final stop category
+    result = stops[["stop_id", "stop_name", "stop_lat", "stop_lon"]].copy()
+
+    # Attach parent station
+    result["station_id"] = result["stop_id"].map(stop_to_parent).fillna(result["stop_id"])
+
+    result = result.merge(dep_a[["station_id", "departures_a", "A_Intervall"]], on="station_id", how="left")
+    result = result.merge(dep_b[["station_id", "departures_b", "B_Intervall"]], on="station_id", how="left")
+    result = result.merge(rail_lines_per_station, on="station_id", how="left")
+    result["num_rail_lines"] = result["num_rail_lines"].fillna(0).astype(int)
+
+    result["Bahnknoten"]  = (result["num_rail_lines"] >= BAHNKNOTEN_MIN_LINES).astype(int)
+    result["Bahnlinie_Anz"] = result["num_rail_lines"]
+    result["TramBus_Anz"] = result["departures_b"]
+    result["Seilbahn_Anz"] = result["station_id"].isin(cable_stations).astype(int)
+
+    def assign_category(row):
+        cat_a = None
+        if pd.notna(row["A_Intervall"]):
+            mode_a = "A1" if row["Bahnknoten"] == 1 else "A2"
+            cat_a  = interval_and_mode_to_stopcat(mode_a, row["A_Intervall"])
+
+        cat_b = None
+        if pd.notna(row["B_Intervall"]):
+            cat_b = interval_and_mode_to_stopcat("B", row["B_Intervall"])
+
+        cat_c = "V" if row["Seilbahn_Anz"] == 1 else None
+
+        candidates = [c for c in (cat_a, cat_b, cat_c) if c is not None]
+        return min(candidates, key=lambda c: CAT_RANK.get(c, 99)) if candidates else None
+
+    result["stop_cat"] = result.apply(assign_category, axis=1)
+    result["Hst_Kat"]  = result["stop_cat"]
+
+    stops = result[["stop_id", "station_id", "stop_name", "stop_lat", "stop_lon",
+                     "Bahnknoten", "Bahnlinie_Anz", "TramBus_Anz", "Seilbahn_Anz",
+                     "A_Intervall", "B_Intervall", "stop_cat", "Hst_Kat"]].copy()
+
+    return stops
+
+
+def compute_ovgk_areas(stops):
+    gdf_stops = gpd.GeoDataFrame(stops, geometry = gpd.points_from_xy(stops["stop_lon"], stops["stop_lat"]), crs = "EPSG:4326")
+    gdf_stops = gdf_stops.to_crs("EPSG:2154")
+
+    rings_param = {
+        "I":   [(0, 299, "A"), (300, 500, "A"), (501, 750, "B"), (751, 1000, "C")],
+        "II":  [(0, 299, "A"), (300, 500, "B"), (501, 750, "C"), (751, 1000, "D")],
+        "III": [(0, 299, "B"), (300, 500, "C"), (501, 750, "D")],
+        "IV":  [(0, 299, "C"), (300, 500, "D")],
+        "V":   [(0, 299, "D")]
+    }
+
+    class_rank = {"A": 0, "B": 1, "C": 2, "D": 3, "Z": 4}
+
+    rings = []
+
+    for _, row in gdf_stops.iterrows():
+        stop_cat = row["stop_cat"]
+        if stop_cat not in rings_param:
+            continue
+
+        ptstop = row["geometry"]
+        for dmin, dmax, theovgk in rings_param[stop_cat]:
+            outer = ptstop.buffer(dmax)
+            inner = ptstop.buffer(dmin) if dmin > 0 else None
+
+            ring = outer
+            if inner is None:
+                ring = outer
+            else:
+                ring = outer.difference(inner)
+
+            rings.append({"stop_id": row["stop_id"],
+                          "stop_cat": stop_cat,
+                          "ovgk_class": theovgk,
+                          "class_rank": class_rank[theovgk],
+                          "geometry": ring})
+            
+    gdf_rings = gpd.GeoDataFrame(rings, crs = gdf_stops.crs) 
+
+    gdf_a = gdf_rings[gdf_rings["ovgk_class"] == "A"].copy()
+    gdf_b = gdf_rings[gdf_rings["ovgk_class"] == "B"].copy()
+    gdf_c = gdf_rings[gdf_rings["ovgk_class"] == "C"].copy()
+    gdf_d = gdf_rings[gdf_rings["ovgk_class"] == "D"].copy()
+
+    def dissolve_or_empty(gdf):
+        if len(gdf) == 0:
+            return geo.Polygon()
+        return gdf.dissolve(by = None).geometry.iloc[0]
+
+    a_merged = dissolve_or_empty(gdf_a)
+    b_merged = dissolve_or_empty(gdf_b)
+    c_merged = dissolve_or_empty(gdf_c)
+    d_merged = dissolve_or_empty(gdf_d)
+
+    b_final = b_merged.difference(a_merged)
+
+    a_union_b = a_merged.union(b_final)
+    c_final   = c_merged.difference(a_union_b)
+
+    a_union_b_union_c = a_union_b.union(c_final)
+    d_final           = d_merged.difference(a_union_b_union_c)
+
+    gdf_output = gpd.GeoDataFrame({"ovgk_class": [], "geometry": []}, crs = gdf_rings.crs)
+
+    dic_gdf = {"A": a_merged, "B": b_final, "C": c_final, "D": d_final}
+
+    for ovgk, shape in dic_gdf.items():
+        thegdf     = gpd.GeoDataFrame({"ovgk_class": [ovgk], "geometry": shape}, crs = gdf_rings.crs)
+        gdf_output = pd.concat([gdf_output, thegdf], ignore_index = True) 
+
+    return gdf_output
+
+
+def configure(context):
+    context.config("processes")
+    context.stage("data.gtfs.cleaned")
+
+
+def execute(context):
+    gtfs_path = "%s/gtfs.zip" % context.path("data.gtfs.cleaned")
+
+    stops = compute_stop_category(gtfs_path, REFERENCE_DATE)
+    ovgk  = compute_ovgk_areas(stops).rename(columns = {"ovgk_class": "ovgk"})
+
+    ovgk.to_file(f"{context.path()}/rings.gpkg", driver = "GPKG")
+
+    return ovgk
+
+
+def impute(context, df_ovgk, df, on, point_type="", chunk_size=100):
+    indices = np.array_split(np.arange(len(df)), chunk_size)
+    df_join = []
+
+    logger.info(f"Imputing ÖV Güteklasse for {len(df)} {point_type} coordinates...")
+    for chunk in context.progress(indices, total=len(indices), label="Imputing ÖV Güteklasse..."):
+        df_join.append(gpd.sjoin(df.iloc[chunk], df_ovgk, predicate="within")[on + ["ovgk"]])
+
+    df_join = pd.concat(df_join)
+    df_join = pd.merge(df, df_join, on=on, how="left")
+    df_join.loc[df_join["ovgk"].isna(), "ovgk"] = "None"
+    df_join["ovgk"] = df_join["ovgk"].astype("category")
+
+    return df_join[on + ["ovgk"]]
+
+
+def impute_parallel(context, df, x="x", y="y", geometry="geometry", output_column="ovgk", point_type="", chunk_size=5000, n_jobs=8):
+    if geometry not in df.columns:
+        if x not in df.columns or y not in df.columns:
+            raise ValueError(f"df must contain either a {geometry} column or both {x} and {y} columns")
+        df[geometry] = gpd.points_from_xy(df[x], df[y], crs="epsg:2154")
+        df = gpd.GeoDataFrame(df, geometry=geometry, crs="EPSG:2154")
+
+    
+    df_ovgk = context.stage("data.spatial.ovgk")
+    df_ovgk.rename(columns={"ovgk": output_column}, inplace=True)
+    assert df_ovgk.crs==df.crs, "CRS of df and df_ovgk must match"
+
+    total_points = len(df)
+    logger.info("Imputing OeV Gueteklasse for %d %s coordinates in parallel...", total_points, point_type)
+
+    if total_points == 0:
+        result = df.copy()
+        result[output_column] = pd.Series(dtype="category")
+        return result
+
+    if n_jobs is None:
+        n_jobs = int(context.config("processes"))
+
+    chunk_count = max(1, int(np.ceil(total_points / chunk_size)))
+    row_ids = np.arange(total_points)
+    id_chunks = np.array_split(row_ids, chunk_count)
+
+    left = gpd.GeoDataFrame(
+        {"__row_id": row_ids, "geometry": df[geometry].values},
+        geometry="geometry",
+        crs=df.crs
+    )
+    right = df_ovgk[[output_column, "geometry"]]
+
+    def process_chunk(ids):
+        chunk = left.iloc[ids]
+        joined = gpd.sjoin(chunk, right, how="left")
+        joined = joined[["__row_id", output_column]].drop_duplicates("__row_id", keep="first")
+        return joined
+
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(process_chunk)(ids)
+        for ids in context.progress(id_chunks, total=len(id_chunks), label="Imputing OeV Gueteklasse (parallel)...")
+    )
+
+    joined = pd.concat(results, ignore_index=True) if results else pd.DataFrame(columns=["__row_id", output_column])
+
+    out = df.copy()
+    out["__row_id"] = row_ids
+    out = out.merge(joined, on="__row_id", how="left")
+    out = out.drop(columns=["__row_id"])
+
+    out.loc[out[output_column].isna(), output_column] = "None"
+    out[output_column] = out[output_column].astype("category")
+    return out

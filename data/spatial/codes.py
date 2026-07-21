@@ -1,7 +1,6 @@
 import os
 import pandas as pd
 import zipfile
-from shapely.ops import unary_union
 
 
 """
@@ -9,6 +8,7 @@ This stages loads a file containing all spatial codes in France and how
 they can be translated into each other. These are mainly IRIS, commune,
 departement and région.
 """
+
 
 def configure(context):
     context.config("data_path")

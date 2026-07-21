@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 """
 This stage samples home zones for all synthesized households. From the census

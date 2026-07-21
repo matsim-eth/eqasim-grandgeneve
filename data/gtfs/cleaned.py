@@ -1,22 +1,44 @@
+import geopandas as gpd
+import pandas as pd
 import data.gtfs.utils as gtfs
 import os, pathlib
 
 """
 This file reads GTFS schedules, cuts them to the scenario area (defined by the
-selected regions and departments) and merges them together.
+selected regions and departments, plus the Swiss cantons/municipalities when
+cross-border flows are enabled) and merges them together.
 """
 
 def configure(context):
     context.config("data_path")
     context.config("gtfs_path", "gtfs_idf")
+    context.config("gtfs_files", None)
+
+    context.config("generate_outbound_flows", "False")
 
     context.stage("data.spatial.municipalities")
 
+    if context.config("generate_outbound_flows"):
+        context.stage("data.spatial.ch.spatial")
+
+
 def execute(context):
-    input_files = get_input_files("{}/{}".format(context.config("data_path"), context.config("gtfs_path")))
-    
+    gtfs_files = context.config("gtfs_files")
+
+    if gtfs_files:
+        input_files = gtfs_files
+    else:
+        input_files = get_input_files("{}/{}".format(context.config("data_path"), context.config("gtfs_path")))
+
     # Prepare bounding area
-    df_area = context.stage("data.spatial.municipalities")
+    df_area = context.stage("data.spatial.municipalities")[["geometry"]]
+
+    if context.config("generate_outbound_flows"):
+        _, df_ch_municipalities = context.stage("data.spatial.ch.spatial")
+        df_ch_area = df_ch_municipalities[["geometry"]].to_crs(df_area.crs)
+
+        df_area = gpd.GeoDataFrame(
+            pd.concat([df_area, df_ch_area], ignore_index = True), crs = df_area.crs)
 
     # Load and cut feeds
     feeds = []
@@ -33,6 +55,7 @@ def execute(context):
 
     return "gtfs.zip"
 
+
 def get_input_files(base_path):
     gtfs_paths = [
         str(child)
@@ -45,8 +68,15 @@ def get_input_files(base_path):
     
     return gtfs_paths
 
+
 def validate(context):
-    input_files = get_input_files("{}/{}".format(context.config("data_path"), context.config("gtfs_path")))
+    gtfs_files = context.config("gtfs_files")
+
+    if gtfs_files:
+        input_files = gtfs_files
+    else:
+        input_files = get_input_files("{}/{}".format(context.config("data_path"), context.config("gtfs_path")))
+
     total_size = 0
 
     for path in input_files:

@@ -2,9 +2,11 @@ import os
 import pandas as pd
 import zipfile
 
+
 """
 Loads aggregate population data.
 """
+
 
 def configure(context):
     context.config("data_path")
@@ -12,6 +14,7 @@ def configure(context):
     context.config("population_path", "rp_2022/base-ic-evol-struct-pop-2022_csv.zip")
     context.config("population_csv", "base-ic-evol-struct-pop-2022.CSV")
     context.config("population_year", 22)
+
 
 def execute(context):
     year = str(context.config("population_year"))
@@ -35,13 +38,8 @@ def execute(context):
     df_codes = df_codes[df_codes["iris_id"]!="CH"]
     df_population = pd.merge(df_population, df_codes, on = ["iris_id", "commune_id"])
 
-    requested_iris = set(df_codes["iris_id"].unique())
-    merged_iris = set(df_population["iris_id"].unique())
-
-    #if requested_iris != merged_iris:
-    #    raise RuntimeError("Some IRIS are missing: %s" % (requested_iris - merged_iris,))
-
     return df_population[["region_id", "departement_id", "commune_id", "iris_id", "population"]]
+
 
 def validate(context):
     if not os.path.exists("{}/{}".format(context.config("data_path"), context.config("population_path"))):

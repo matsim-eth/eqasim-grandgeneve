@@ -1,7 +1,7 @@
-import pandas as pd
 import os
-import zipfile
 import polars as pl
+
+
 """
 This stage loads the raw data from the French service registry.
 """
@@ -10,6 +10,7 @@ def configure(context):
     context.config("data_path")
     context.config("bpe_path", "bpe_2024/BPE24.parquet")
     context.stage("data.spatial.codes")
+
 
 def execute(context):
     df_codes = context.stage("data.spatial.codes").copy()
@@ -31,6 +32,7 @@ def execute(context):
         progress.update(len(parquet))
 
     return parquet.to_pandas()
+
 
 def validate(context):
     if not os.path.exists("%s/%s" % (context.config("data_path"), context.config("bpe_path"))):

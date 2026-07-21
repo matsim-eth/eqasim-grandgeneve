@@ -6,10 +6,10 @@ working_directory: /home/asallard/Documents/Tests/caches/cache_geneva
 
 # This section defines which parts of the pipeline should be run
 run:
-  #- data.locations_CH.statent.destinations # To create the output population in the output_path (see below)
+  # - data.spatial.municipality_types
   # - data.hts.edgt_74.adisp_merge.merge
-  #- synthesis.population.cross_perimeter
-  - synthesis.output
+  # - synthesis.population.cross_perimeter
+  - synthesis.population.spatial.locations
   # - analysis.reference.hts.chains
   # - synthesis.population.sampled
   # - data.gtfs.output
@@ -238,6 +238,7 @@ config:
   # bpe_csv: bpe21_ensemble_xy.csv
 
   gtfs_path: gtfs_cmdp
+  gtfs_files: ["/home/asallard/Documents/Data/fr_data/gtfs_cmdp/merged_gtfs.zip"]
 
   ##############################
   # SEND PEOPLE TO SWITZERLAND #
@@ -246,6 +247,7 @@ config:
   swiss_cantons: "/home/asallard/Euler_data/ch_data/pipeline/spatial/canton/swissBOUNDARIES3D_1_5_TLM_KANTONSGEBIET.shp"
   swiss_municipalities: "/home/asallard/Euler_data/ch_data/pipeline/spatial/municipality/2022/swissBOUNDARIES3D_1_5_TLM_HOHEITSGEBIET.shp"
   cantons: ["Genève", "Vaud"]
+  swiss_municipality_types: "/home/asallard/Euler_data/ch_data/pipeline/spatial/Raumgliederungen.xlsx"
 
   # income_com_path: filosofi_2019/indic-struct-distrib-revenu-2019-COMMUNES.zip
   # income_com_xlsx: FILO2019_DISP_COM.xlsx

@@ -1,6 +1,11 @@
 import pandas as pd
 import geopandas as gpd
-import numpy as np
+from data.sirene.density import impute_parallel as impute_sirene
+from data.spatial.population_density import impute_parallel as impute_population
+from data.spatial.ovgk import impute_parallel as impute_ovgk
+
+EMPLOYEES_DENSITY_RADIUS = 500
+POPULATION_DENSITY_RADIUS = 500
 
 def configure(context):
     context.stage("synthesis.population.spatial.home.locations")
@@ -9,7 +14,15 @@ def configure(context):
 
     context.stage("synthesis.population.activities")
     context.stage("synthesis.population.sampled")
+
     context.stage("data.spatial.iris")
+    context.stage("data.spatial.municipality_types")
+    context.stage("data.spatial.municipalities")
+    context.stage("data.sirene.density")
+    context.stage("data.spatial.population_density")
+    context.stage("data.spatial.ovgk")
+
+    context.config("processes", volatile = True)
 
 def execute(context):
     df_home = context.stage("synthesis.population.spatial.home.locations")
@@ -62,6 +75,37 @@ def execute(context):
     df_iris = context.stage("data.spatial.iris")
     df_iris = gpd.GeoDataFrame(df_iris, crs = df_home.crs)
 
-    df_locations = gpd.sjoin(df_locations,df_iris,how="left")
+    df_locations = gpd.sjoin(df_locations, df_iris, how = "left")
+    df_locations = df_locations.drop(columns = ["index_right"])
+
+    # Add municipality types
+    df_muntypes = context.stage("data.spatial.municipality_types")
+    df_muntypes = gpd.GeoDataFrame(df_muntypes, crs = df_home.crs)
+
+    df_locations = gpd.sjoin(df_locations, df_muntypes, how = "left")
+
+    print(df_locations.municipality_type.value_counts(dropna = False))
+
+    # Attach SIRENE-based densities to activities
+    df_locations["x"] = df_locations.geometry.x
+    df_locations["y"] = df_locations.geometry.y
+    threads = max(1, min(context.config("processes"), 8)) # avoid too many threads for this step as it can cause memory issues
+
+    df_locations = impute_sirene(context, df_locations, x = "x", y = "y", chunk_size = 10_000,
+        radius = EMPLOYEES_DENSITY_RADIUS, point_type = "activity", measure = "employees",
+        output_column = "employee_density", n_jobs = threads)
+
+    df_locations = impute_sirene(context, df_locations, x = "x", y = "y", chunk_size = 10_000,
+        radius = EMPLOYEES_DENSITY_RADIUS, point_type = "activity", measure = "companies",
+        output_column = "companies_density", n_jobs = threads)
+
+    df_locations = impute_population(context, context.stage("data.spatial.population_density"), df_locations,
+        x = "x", y = "y", chunk_size = 5000, n_jobs = threads,
+        radius = POPULATION_DENSITY_RADIUS, point_type = "activity")
+
+    df_locations = impute_ovgk(context, df_locations, x = "x", y = "y", chunk_size = 5000,
+        point_type = "activity", output_column = "ovgk", n_jobs = threads)
+
+    print(df_locations.columns)
 
     return df_locations

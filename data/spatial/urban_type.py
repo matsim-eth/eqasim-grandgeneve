@@ -7,12 +7,14 @@ import numpy as np
 from openpyxl.styles.colors import WHITE, RGB
 __old_rgb_set__ = RGB.__set__
 
+
 def __rgb_set_fixed__(self, instance, value):
     try:
         __old_rgb_set__(self, instance, value)
     except ValueError as e:
         if e.args[0] == 'Colors must be aRGB hex values':
             __old_rgb_set__(self, instance, WHITE)
+
 
 RGB.__set__ = __rgb_set_fixed__
 # END Monkey patching openpyxl
@@ -24,6 +26,7 @@ def configure(context):
 
     context.config("data_path")
     context.config("urban_type_path", "urban_type/UU2020_au_01-01-2023.zip")
+
 
 def execute(context):
     with zipfile.ZipFile("{}/{}".format(
@@ -65,6 +68,7 @@ def execute(context):
     assert len(df["commune_id"].unique()) == len(df)
 
     return df
+
 
 def validate(context):
     if not os.path.exists("%s/%s" % (context.config("data_path"), context.config("urban_type_path"))):
