@@ -1,14 +1,30 @@
 import numpy as np
+import pandas as pd
 from sklearn.neighbors import KDTree
 from joblib import Parallel, delayed
-import logging
-logger = logging.getLogger("synpp")
+
 
 def configure(context):
     context.stage("data.sirene.localized")
 
+    context.config("generate_outbound_flows", "False")
+    if context.config("generate_outbound_flows"):
+        context.stage("data.locations_CH.statent.statent")
+
+
 def execute(context):
     df_sirene = context.stage("data.sirene.localized")[["x", "y", "minimum_employees"]].reset_index(drop = True)
+    print("SIRENE establishments in density index: %d" % len(df_sirene))
+
+    if context.config("generate_outbound_flows"):
+        df_statent = context.stage("data.locations_CH.statent.statent")[["x", "y", "number_employees"]]
+        df_statent = df_statent.rename(columns = {"number_employees": "minimum_employees"})
+        print("STATENT establishments in density index: %d (x range %.0f-%.0f, y range %.0f-%.0f)" % (
+            len(df_statent), df_statent["x"].min(), df_statent["x"].max(),
+            df_statent["y"].min(), df_statent["y"].max()
+        ))
+        df_sirene = pd.concat([df_sirene, df_statent], ignore_index = True)
+
     density_coordinates = np.vstack([df_sirene["x"], df_sirene["y"]]).T
     kd_tree = KDTree(density_coordinates)
     employee_weights = df_sirene["minimum_employees"].to_numpy()
@@ -18,17 +34,22 @@ def execute(context):
         "employee_weights": employee_weights
     }
 
+
 def impute(context, df, x="x", y="y", radius= 500, point_type="", chunk_size=1e5,
            measure="companies", output_column=None):
-    measure = _normalize_measure(measure)
+    
+    measure                   = _normalize_measure(measure)
     kd_tree, employee_weights = _unpack_density_data(context)
-    output_column = _get_output_column(measure, output_column)
-    logger.info("Imputing %s density within %d m of %d %s coordinates...", measure, radius, len(df), point_type)
-    counts = []
+    output_column             = _get_output_column(measure, output_column)
+
+    print("Imputing %s density within %d m of %d %s coordinates...", measure, radius, len(df), point_type)
+
+    counts      = []
     chunk_count = max(1, int(np.ceil(len(df) / chunk_size)))
+
     for chunk in context.progress(np.array_split(df, chunk_count),
-                                  total=chunk_count,
-                                  label="Imputing {} density...".format(measure)):
+                                  total = chunk_count,
+                                  label = "Imputing {} density...".format(measure)):
 
         coordinates = np.vstack([chunk[x], chunk[y]]).T
         counts.extend(_query_density(kd_tree, coordinates, radius, measure, employee_weights))
@@ -37,18 +58,20 @@ def impute(context, df, x="x", y="y", radius= 500, point_type="", chunk_size=1e5
 
     return df
 
+
 def impute_parallel(context, df, x="x", y="y", radius=500, point_type="", chunk_size=1e4,
                     n_jobs=10, measure="companies", output_column=None):
-    measure = _normalize_measure(measure)
+    
+    measure                   = _normalize_measure(measure)
     kd_tree, employee_weights = _unpack_density_data(context)
-    output_column = _get_output_column(measure, output_column)
+    output_column             = _get_output_column(measure, output_column)
 
     total_points = len(df)
-    logger.info("Imputing %s density within %d m of %d %s coordinates...", measure, radius, total_points, point_type)
+    print("Imputing %s density within %d m of %d %s coordinates...", measure, radius, total_points, point_type)
 
     # Split DataFrame into roughly equal chunks
     chunk_count = max(1, int(np.ceil(total_points / chunk_size)))
-    df_splits = np.array_split(df, chunk_count)
+    df_splits   = np.array_split(df, chunk_count)
 
     def process_chunk(chunk):
         coords = np.vstack([chunk[x], chunk[y]]).T
@@ -61,7 +84,7 @@ def impute_parallel(context, df, x="x", y="y", radius=500, point_type="", chunk_
     )
 
     # Flatten list of arrays
-    counts = np.concatenate(results)
+    counts            = np.concatenate(results)
     df[output_column] = counts
     return df
 

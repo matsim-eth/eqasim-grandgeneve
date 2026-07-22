@@ -33,7 +33,11 @@ def execute(context):
     df_locations = context.stage("synthesis.population.activities")[["person_id", "activity_index", "purpose"]]
 
     # Home locations
-    df_home_locations = df_locations[df_locations["purpose"] == "home"]
+    # ("cross_perimeter" activities also happen at the agent's home: these
+    # agents are dropped from the trip chain entirely - see
+    # synthesis.population.trips / synthesis.population.activities - so
+    # there is no secondary-location candidate to place them at.)
+    df_home_locations = df_locations[df_locations["purpose"].isin(("home", "cross_perimeter"))]
     df_home_locations = pd.merge(df_home_locations, df_persons, on = "person_id")
     df_home_locations = pd.merge(df_home_locations, df_home[["household_id", "geometry"]], on = "household_id")
     df_home_locations["location_id"] = -1
@@ -52,7 +56,7 @@ def execute(context):
     assert not df_education_locations["geometry"].isna().any()
 
     # Secondary locations
-    df_secondary_locations = df_locations[~df_locations["purpose"].isin(("home", "work", "education"))].copy()
+    df_secondary_locations = df_locations[~df_locations["purpose"].isin(("home", "cross_perimeter", "work", "education"))].copy()
     df_secondary_locations = pd.merge(df_secondary_locations, df_secondary[[
         "person_id", "activity_index", "location_id", "geometry"
     ]], on = ["person_id", "activity_index"], how = "left")
@@ -79,10 +83,32 @@ def execute(context):
     df_locations = df_locations.drop(columns = ["index_right"])
 
     # Add municipality types
-    df_muntypes = context.stage("data.spatial.municipality_types")
+    # (municipality_types' own commune_id uses a different, FR/CH-prefixed
+    # format from the IRIS-derived one above, so it is renamed here and only
+    # used below as a fallback for locations outside of the IRIS zoning)
+    df_muntypes = context.stage("data.spatial.municipality_types")[["municipality_type", "commune_id", "geometry"]]
+    df_muntypes = df_muntypes.rename(columns = { "commune_id": "muntype_commune_id" })
     df_muntypes = gpd.GeoDataFrame(df_muntypes, crs = df_home.crs)
 
     df_locations = gpd.sjoin(df_locations, df_muntypes, how = "left")
+    df_locations = df_locations.drop(columns = ["index_right"])
+
+    # IRIS only covers France, so locations outside of it (e.g. in
+    # Switzerland, when generate_outbound_flows is enabled) get no
+    # iris_id / commune_id / departement_id / region_id from the join above.
+    # Backfill them using the municipality_types zoning, which also covers
+    # Switzerland, following the same "CH" convention used for cross-border
+    # zones elsewhere in the pipeline (see data.spatial.codes).
+    for column in ["iris_id", "commune_id", "departement_id", "region_id"]:
+        df_locations[column] = df_locations[column].astype(object)
+
+    missing = df_locations["commune_id"].isna()
+    df_locations.loc[missing, "commune_id"] = df_locations.loc[missing, "muntype_commune_id"]
+    df_locations.loc[missing, "iris_id"] = "CH"
+    df_locations.loc[missing, "departement_id"] = "CH"
+    df_locations.loc[missing, "region_id"] = "CH"
+
+    df_locations = df_locations.drop(columns = ["muntype_commune_id"])
 
     print(df_locations.municipality_type.value_counts(dropna = False))
 

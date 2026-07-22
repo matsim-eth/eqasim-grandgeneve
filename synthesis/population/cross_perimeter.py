@@ -81,7 +81,7 @@ def configure(context):
 # ---------------------------------------------------------------------------
 
 def load_and_prepare(context):
-    df_households, df_persons, df_trips = context.stage("data.hts.edgt_74.adisp_merge.merge")
+    df_households, df_persons, _ = context.stage("data.hts.edgt_74.adisp_merge.merge")
 
     df = df_persons.merge(
         df_households[["household_id", "M6"]].rename(columns = { "M6": "number_of_cars" }),

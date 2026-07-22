@@ -9,11 +9,9 @@ This stage duplicates trips and attaches them to the synthetic population.
 
 def configure(context):
     context.stage("synthesis.population.matched")
+    context.stage("synthesis.population.enriched")
     context.config("random_seed")
-    
-    with_motorcycles = context.config("with_motorcycles", False)
-    if with_motorcycles:
-        context.stage("synthesis.population.enriched")
+    context.config("with_motorcycles", False)
 
     hts = context.config("hts")
     context.stage("data.hts.selected", alias = "hts")
@@ -27,11 +25,20 @@ def execute(context):
     df_trips = df_trips.rename(columns = { "person_id": "hts_id" })
     df_trips = pd.merge(df_matching, df_trips, on = "hts_id")
 
+    df_enriched = context.stage("synthesis.population.enriched")
+
+    # Cross-perimeter agents get a single "cross_perimeter" activity and no
+    # trips (see synthesis.population.activities), so their HTS-derived trip
+    # chain is dropped here rather than generated and removed downstream.
+    if "is_crossperim_person" in df_enriched:
+        cross_perimeter_ids = df_enriched.loc[df_enriched["is_crossperim_person"], "person_id"]
+        df_trips = df_trips[~df_trips["person_id"].isin(cross_perimeter_ids)]
+
     if context.config("with_motorcycles"):
-        df_population = context.stage("synthesis.population.enriched")[["person_id", "use_motorcycle"]]
+        df_population = df_enriched[["person_id", "use_motorcycle"]]
         df_trips["mode"] = df_trips["mode"].cat.add_categories("motorcycle")
         df_trips = pd.merge(df_population, df_trips, on = "person_id")
-        
+
     df_trips = df_trips.sort_values(by = ["person_id", "trip_id"])
 
     # Define trip index

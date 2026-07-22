@@ -35,6 +35,17 @@ def validate(context):
         raise RuntimeError("Output directory must exist: %s" % output_path)
 
 
+def format_commune_id(commune_id):
+    commune_id = commune_id.astype(str)
+    is_ch      = commune_id.str.startswith("CH")
+
+    formatted = pd.Series(pd.NA, index = commune_id.index, dtype = object)
+    formatted[is_ch]  = "CH" + commune_id[is_ch].str[2:].astype(int).astype(str)
+    formatted[~is_ch] = "FR" + commune_id[~is_ch]
+
+    return formatted
+
+
 def clean_gpkg(path):
     '''
     Make GPKG files time and OS independent.
@@ -103,6 +114,7 @@ def execute(context):
         "municipality_type",
         "employee_density", "companies_density", "population_density", "ovgk"
     ]]
+    df_locations["commune_id"] = format_commune_id(df_locations["commune_id"])
 
     df_activities = pd.merge(df_activities, df_locations[[
         "person_id",

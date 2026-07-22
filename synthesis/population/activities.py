@@ -1,5 +1,3 @@
-import gzip
-from tqdm import tqdm
 import pandas as pd
 import numpy as np
 
@@ -49,19 +47,35 @@ def execute(context):
     ]).sort_values(by = ["person_id", "activity_index"])
 
     # Add activities for people without trips
-    df_missing = context.stage("synthesis.population.enriched")
-    df_missing = df_missing[~df_missing["person_id"].isin(df_activities["person_id"])][["person_id"]]
+    df_enriched = context.stage("synthesis.population.enriched")
+    has_crossperim = "is_crossperim_person" in df_enriched
+
+    columns = ["person_id"] + (["is_crossperim_person"] if has_crossperim else [])
+    df_missing = df_enriched[~df_enriched["person_id"].isin(df_activities["person_id"])][columns].copy()
 
     df_missing["activity_index"] = 0
     df_missing["trip_index"] = -1
     df_missing["purpose"] = "home"
+
+    if has_crossperim:
+        # Cross-perimeter agents (see synthesis.population.trips, which drops
+        # their trips) get a single "cross_perimeter" activity instead of
+        # "home", and no trips at all.
+        df_missing.loc[df_missing["is_crossperim_person"], "purpose"] = "cross_perimeter"
+        df_missing = df_missing.drop(columns = ["is_crossperim_person"])
+
     df_missing["start_time"] = np.nan
     df_missing["end_time"] = np.nan
     df_missing["is_first"] = True
     df_missing["is_last"] = True
 
-    df_missing["purpose"] = df_missing["purpose"].astype(df_activities["purpose"].dtype)
+    # "cross_perimeter" is not among the HTS-derived purpose categories on
+    # df_activities, so cast through plain strings rather than reusing its
+    # categorical dtype directly (which would silently turn it into NaN).
+    df_activities["purpose"] = df_activities["purpose"].astype(str)
+    df_missing["purpose"] = df_missing["purpose"].astype(str)
     df_activities = pd.concat([df_activities, df_missing])
+    df_activities["purpose"] = df_activities["purpose"].astype("category")
 
     # Some cleanup
     df_activities["duration"] = df_activities["end_time"] - df_activities["start_time"]

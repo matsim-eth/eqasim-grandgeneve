@@ -9,10 +9,10 @@ run:
   # - data.spatial.municipality_types
   # - data.hts.edgt_74.adisp_merge.merge
   # - synthesis.population.cross_perimeter
-  - synthesis.population.spatial.locations
+  # - synthesis.output
   # - analysis.reference.hts.chains
   # - synthesis.population.sampled
-  # - data.gtfs.output
+  - data.gtfs.output
   # - data.ban.raw
   # - data.bdtopo.raw
   # - data.ban.raw
@@ -238,7 +238,7 @@ config:
   # bpe_csv: bpe21_ensemble_xy.csv
 
   gtfs_path: gtfs_cmdp
-  gtfs_files: ["/home/asallard/Documents/Data/fr_data/gtfs_cmdp/merged_gtfs.zip"]
+  #gtfs_files: ["/home/asallard/Documents/Data/fr_data/gtfs_cmdp/merged_gtfs.zip"]
 
   ##############################
   # SEND PEOPLE TO SWITZERLAND #

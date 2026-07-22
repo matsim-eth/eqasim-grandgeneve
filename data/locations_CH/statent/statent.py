@@ -109,7 +109,7 @@ def execute(context):
 
     df = df[df.within(target_region)]
     df = df.to_crs("EPSG:2154")
-    df.loc[:, "x"] =  df.x
-    df.loc[:, "y"] =  df.y
+    df.loc[:, "x"] = df.geometry.x
+    df.loc[:, "y"] = df.geometry.y
 
     return df
