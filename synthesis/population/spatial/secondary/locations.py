@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import multiprocessing as mp
 import shapely.geometry as geo
 import geopandas as gpd
 

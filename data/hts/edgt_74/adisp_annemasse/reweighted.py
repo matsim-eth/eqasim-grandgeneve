@@ -1,5 +1,3 @@
-import numpy as np
-
 def configure(context):
     context.stage("data.hts.edgt_74.adisp_annemasse.filtered")
 

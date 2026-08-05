@@ -1,5 +1,4 @@
 import geopandas as gpd
-import unicodedata
 
 
 def configure(context):

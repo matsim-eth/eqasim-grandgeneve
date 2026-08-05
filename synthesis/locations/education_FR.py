@@ -1,7 +1,6 @@
-import shapely.geometry as geo
-import numpy as np
 import pandas as pd
 import geopandas as gpd
+import data.id_utils
 
 def configure(context):
     context.stage("data.spatial.municipalities")
@@ -26,7 +25,13 @@ def fake_education(missing_communes, c, df_locations, df_zones):
             "geometry"
         ].centroid.iloc[0]
 
-        df_added.append({"commune_id": commune_id, "geometry": centroid})
+        # No real facility here, so fall back to a commune+level-keyed id
+        # (base62 when numeric; Corsica's "2A"/"2B" codes are kept as-is).
+        commune_key = data.id_utils.to_base62(int(commune_id)) if str(commune_id).isdigit() else str(commune_id)
+        df_added.append({
+            "commune_id": commune_id, "geometry": centroid,
+            "location_id": "FR_EDU_CENTROID_%s_%s" % (commune_key, c),
+        })
 
     df_added = gpd.GeoDataFrame(
         pd.DataFrame.from_records(df_added), crs=df_locations.crs
@@ -42,7 +47,9 @@ def execute(context):
     df_locations = context.stage("location_source")
 
     df_locations = df_locations[df_locations["activity_type"] == "education"]
-    df_locations = df_locations[["education_type", "commune_id","weight", "geometry"]].copy()
+    id_column = "enterprise_id" if "enterprise_id" in df_locations.columns else "location_id"
+    df_locations = df_locations[[id_column, "education_type", "commune_id","weight", "geometry"]].copy()
+    df_locations = df_locations.rename(columns = {id_column: "location_id"})
     df_locations["fake"] = False
 
     # Add education destinations to the centroid of zones that have no other destinations
@@ -75,8 +82,5 @@ def execute(context):
     
     df_locations["education_type"] = df_locations["education_type"].str[:2].astype("category")
 
-    # Define identifiers
-    df_locations["location_id"]= np.arange(len(df_locations))
-    df_locations["location_id"] = "edu_" + df_locations["location_id"].astype(str)
-    
+
     return df_locations[["location_id", "education_type", "commune_id", "weight", "fake", "geometry"]]

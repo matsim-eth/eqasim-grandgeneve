@@ -1,5 +1,5 @@
-import pandas as pd
 import geopandas as gpd
+
 
 def configure(context):
     context.config("output_path")
@@ -10,6 +10,7 @@ def configure(context):
     context.stage("synthesis.locations.work")
     context.stage("synthesis.locations.education")
     context.stage("synthesis.locations.secondary")
+
 
 def execute(context):
 

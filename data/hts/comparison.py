@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.ticker as tck
 
 """
 Comparison of various attributes between EGT, ENTD and census.

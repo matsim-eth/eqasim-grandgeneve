@@ -1,5 +1,3 @@
-import geopandas as gpd
-
 def configure(context):
     context.config("output_path")
     context.config("output_prefix", "ile_de_france_")

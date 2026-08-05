@@ -21,11 +21,11 @@ def execute(context):
     with context.progress(label = "Reading BPE ...") as progress:
         parquet = pl.read_parquet("{}/{}".format(context.config("data_path"), context.config("bpe_path")), columns = [ "CAPACITE",
                         "DCIRIS", "LAMBERT_X", "LAMBERT_Y",
-                        "TYPEQU", "DEPCOM", "DEP"
+                        "TYPEQU", "DEPCOM", "DEP", "SIRET"
                     ],
                 )
 
-        parquet  = parquet.cast( dict(DEPCOM = str, DEP = str, DCIRIS = str))
+        parquet  = parquet.cast( dict(DEPCOM = str, DEP = str, DCIRIS = str, SIRET = str))
         dpts_str = [str(dep) for dep in requested_departements]
         parquet  = parquet.filter(pl.col("DEP").cast(pl.Utf8).is_in(dpts_str))
 

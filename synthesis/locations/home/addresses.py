@@ -1,7 +1,6 @@
 import pandas as pd
-import numpy as np
 import geopandas as gpd
-import numpy as np
+
 
 """
 This stage assigns adresses from BAN to residential buildings from BD TOPO.

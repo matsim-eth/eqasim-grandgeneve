@@ -3,7 +3,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.ops import unary_union
 from shapely.validation import make_valid
-
+import data.id_utils
 
 
 def configure(context):
@@ -49,10 +49,14 @@ def execute(context):
 
     df = pd.DataFrame(pd.read_csv(f"{data_path}/{statent}", encoding = "latin1", sep = ","))
 
-    df         = pd.DataFrame(df[["METER_X", "METER_Y", "NOGA08_CD", "EMPTOT"]])
-    df.columns = ["x", "y", "noga", "number_employees"]
+    df         = pd.DataFrame(df[["METER_X", "METER_Y", "NOGA08_CD", "EMPTOT", "ANONYM_LOCAL_ID"]])
+    df.columns = ["x", "y", "noga", "number_employees", "anonym_local_id"]
     df         = df.astype({"noga": str})
-    df.loc[:, "enterprise_id"] = np.arange(len(df))
+
+    # Canonical id from BFS's stable per-establishment id, base62-encoded.
+    # Keep in sync with eqasim-switzerland's data/statent/statent.py.
+    df.loc[:, "enterprise_id"] = "CH_STATENT_" + df["anonym_local_id"].astype(int).apply(data.id_utils.to_base62)
+    df = df.drop(columns = ["anonym_local_id"])
 
     df.loc[df["noga"].str.startswith("851"), "education_type"] = "kindergarten"
     df.loc[df["noga"].str.startswith("852"), "education_type"] = "primary"

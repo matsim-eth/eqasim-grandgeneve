@@ -1,8 +1,5 @@
-import numpy as np
-
 def configure(context):
     context.stage("data.locations_CH.statent.destinations")
-    context.stage("synthesis.locations.work_FR")
 
 
 def execute(context):
@@ -14,13 +11,9 @@ def execute(context):
     df_workplaces["employees"] = df_workplaces["number_employees"]
     df_workplaces["fake"] = False
 
-    # Get minimum ID to use here
-    df_work_fr       = context.stage("synthesis.locations.work_FR")
-    max_workplace_id = df_work_fr["location_id"].str.split("work_").str[-1].astype(int).max() + 1
-
-    # Add work identifier
-    df_workplaces["location_id"] = np.arange(max_workplace_id, max_workplace_id + len(df_workplaces))
-    df_workplaces["location_id"] = "work_" + df_workplaces["location_id"].astype(str)
+    # destination_id is already canonical and disjoint from French ids -
+    # no offset against work_FR's ids is needed.
+    df_workplaces["location_id"] = df_workplaces["destination_id"]
 
     # Communes?
     df_workplaces["commune_id"] = df_workplaces["municipality_id"]

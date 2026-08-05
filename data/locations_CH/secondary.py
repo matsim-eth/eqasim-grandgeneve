@@ -1,14 +1,11 @@
-import numpy as np
-
 def configure(context):
     context.stage("data.locations_CH.statent.destinations")
-    context.stage("synthesis.locations.secondary_FR")
 
 
 def execute(context):
     df_secplaces = context.stage("data.locations_CH.statent.destinations")[[
-        "destination_id", 
-        "offers_leisure", "offers_other", "offers_shop", 
+        "destination_id",
+        "offers_leisure", "offers_other", "offers_shop",
         "geometry", "number_employees"
     ]].copy()
 
@@ -18,14 +15,10 @@ def execute(context):
     df_secplaces["employees"] = df_secplaces["number_employees"]
     df_secplaces["fake"] = False
 
-    # Get minimum ID to use here
-    df_sec_fr       = context.stage("synthesis.locations.secondary_FR")
-    max_secplace_id = df_sec_fr["location_id"].str.split("sec_").str[-1].astype(int).max() + 1
-    print(max_secplace_id)
-
-    # Add work identifier
-    df_secplaces["enterprise_id"] = np.arange(max_secplace_id, max_secplace_id + len(df_secplaces))
-    df_secplaces["location_id"] = "sec_" + df_secplaces["enterprise_id"].astype(str)
+    # destination_id is already canonical and disjoint from French ids -
+    # no offset against secondary_FR's ids is needed.
+    df_secplaces["enterprise_id"] = df_secplaces["destination_id"]
+    df_secplaces["location_id"]   = df_secplaces["destination_id"]
 
     # Communes?
     df_secplaces["commune_id"] = "01001"

@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 
 """
 This stage reweights the census data set according to the projection data for a different year.

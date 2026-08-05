@@ -1,9 +1,6 @@
 import numpy as np
 import pandas as pd
 from synthesis.population.income.utils import income_uniform_sample
-import multiprocessing as mp
-from tqdm import tqdm
-
 """
 This stage assigns a household income to each household of the synthesized
 population. For that it looks up the municipality of each household in the

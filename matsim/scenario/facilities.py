@@ -62,6 +62,15 @@ def execute(context):
             df_locations = pd.concat([df_work, df_education])
             df_locations = df_locations[PRIMARY_FIELDS]
 
+            # A STATENT location can be chosen as both work and education;
+            # merge into one facility offering both, since ids are now shared.
+            has_work      = df_locations.groupby("location_id")["is_work"].transform("any")
+            has_education = df_locations.groupby("location_id")["is_work"].transform(lambda s: (~s).any())
+            df_locations   = df_locations.assign(has_work = has_work, has_education = has_education)
+            df_locations   = df_locations.drop_duplicates("location_id")
+
+            written_ids = set(df_locations["location_id"])
+
             with context.progress(total = len(df_locations), label = "Writing primary facilities ...") as progress:
                 for item in df_locations.itertuples(index = False):
                     geometry = item[PRIMARY_FIELDS.index("geometry")]
@@ -71,13 +80,17 @@ def execute(context):
                         geometry.x, geometry.y
                     )
 
-                    writer.add_activity("work" if item[PRIMARY_FIELDS.index("is_work")] else "education")
+                    if item.has_work: writer.add_activity("work")
+                    if item.has_education: writer.add_activity("education")
                     writer.end_facility()
 
             # Write secondary
 
             df_locations = context.stage("synthesis.locations.secondary")
             df_locations = df_locations[SECONDARY_FIELDS]
+
+            # May already have been written above (shared STATENT id) - skip.
+            df_locations = df_locations[~df_locations["location_id"].isin(written_ids)]
 
             with context.progress(total = len(df_locations), label = "Writing secondary facilities ...") as progress:
                 for item in df_locations.itertuples(index = False):

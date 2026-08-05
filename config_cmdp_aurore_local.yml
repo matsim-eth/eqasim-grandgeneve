@@ -9,10 +9,10 @@ run:
   # - data.spatial.municipality_types
   # - data.hts.edgt_74.adisp_merge.merge
   # - synthesis.population.cross_perimeter
-  # - synthesis.output
+  - synthesis.output
   # - analysis.reference.hts.chains
   # - synthesis.population.sampled
-  - data.gtfs.output
+  # - data.gtfs.output
   # - data.ban.raw
   # - data.bdtopo.raw
   # - data.ban.raw

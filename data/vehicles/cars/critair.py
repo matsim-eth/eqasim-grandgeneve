@@ -1,6 +1,5 @@
-import numpy as np
 import pandas as pd
-import mock, os, glob
+import mock, os
 from openpyxl.reader import excel
 import zipfile
 

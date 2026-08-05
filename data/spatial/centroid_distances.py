@@ -1,7 +1,9 @@
 import pandas as pd
 
+ 
 def configure(context):
     context.stage("data.spatial.municipalities")
+
 
 def execute(context):
     df = context.stage("data.spatial.municipalities")

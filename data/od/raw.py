@@ -1,7 +1,4 @@
-import pandas as pd
 import os
-import zipfile
-import pyarrow as pa
 import polars as pl
 """
 Loads raw OD data from French census data.
