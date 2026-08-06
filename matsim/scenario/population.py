@@ -13,7 +13,6 @@ def configure(context):
     context.stage("synthesis.population.activities")
     context.stage("synthesis.population.spatial.locations")
 
-    context.stage("synthesis.population.trips")
     context.stage("synthesis.vehicles.vehicles")
 
 PERSON_FIELDS = [
@@ -124,13 +123,16 @@ def execute(context):
 
 
     df_activities = context.stage("synthesis.population.activities").sort_values(by = ["person_id", "activity_index"])
-    df_locations = context.stage("synthesis.population.spatial.locations")[[
+    df_locations, df_trips = context.stage("synthesis.population.spatial.locations")
+    df_locations = df_locations[[
         "person_id", "activity_index", "geometry", "location_id"]].sort_values(by = ["person_id", "activity_index"])
 
     df_activities = pd.merge(df_activities, df_locations, how = "left", on = ["person_id", "activity_index"])
     #df_activities["location_id"] = df_activities["location_id"].fillna(-1).astype(int)
 
-    df_trips = context.stage("synthesis.population.trips")
+    # df_trips carries "_loop"-tagged modes (see
+    # synthesis.population.spatial.locations.tag_short_assigned_trips), so
+    # this is the mode that reaches MATSim, not the raw synthesis.population.trips.
     df_trips["travel_time"] = df_trips["arrival_time"] - df_trips["departure_time"]
 
     df_vehicles = context.stage("synthesis.vehicles.vehicles")[1]

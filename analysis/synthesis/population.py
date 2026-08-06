@@ -52,7 +52,7 @@ def execute(context):
     sampling_rate = context.config("sampling_rate")
     df_person_eq = context.stage("synthesis.population.enriched")
     df_trip_eq = context.stage("synthesis.population.trips")
-    df_location_eq = context.stage("synthesis.population.spatial.locations")[["person_id", "activity_index", "geometry"]]
+    df_location_eq = context.stage("synthesis.population.spatial.locations")[0][["person_id", "activity_index", "geometry"]]
     
     df_location_eq = df_location_eq.to_crs("EPSG:2154")
     df_trip_eq["preceding_activity_index"] = df_trip_eq["trip_index"]

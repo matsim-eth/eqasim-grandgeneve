@@ -79,6 +79,85 @@ from synthesis.population.spatial.secondary.rda import AssignmentSolver, Discret
 from synthesis.population.spatial.secondary.components import CustomDistanceSampler, CustomDiscretizationSolver, CandidateIndex, CustomFreeChainSolver
 from synthesis.population.spatial.secondary.force_model.solver import ForceFieldChainSolver
 
+# Sentinel location_id for a discretized secondary activity whose geometry
+# was forced onto a fixed (home/work/education) anchor by a "_loop" mode
+# constraint below: there is no real facility for it in synthesis.locations.secondary,
+# so we reuse the same sentinel already used for home in
+# synthesis.population.spatial.locations.
+LOOP_ANCHOR_LOCATION_ID = -1
+
+def apply_loop_constraints(problem, result):
+    """Trips tagged with a "_loop" mode (data.hts.edgt_74.adisp_merge.merge.
+    tag_short_trip_loop_mode) represent very short "went around the block"
+    trips rather than trips to a genuinely new place: their destination
+    should coincide exactly with their origin. The discretization/relaxation
+    solvers above don't know about this, so we force it here as a
+    post-processing step on the already-solved chain."""
+    modes = problem["modes"]
+
+    if not any(mode.endswith("_loop") for mode in modes):
+        return
+
+    discretization = result["discretization"]
+    locations = list(discretization["locations"])
+    identifiers = list(discretization["identifiers"])
+
+    origin, destination = problem["origin"], problem["destination"]
+
+    sequence_locations = []
+    sequence_identifiers = []
+
+    if origin is not None:
+        sequence_locations.append(np.asarray(origin).reshape(2))
+        sequence_identifiers.append(LOOP_ANCHOR_LOCATION_ID)
+
+    for location, identifier in zip(locations, identifiers):
+        sequence_locations.append(np.asarray(location).reshape(2))
+        sequence_identifiers.append(identifier)
+
+    if destination is not None:
+        sequence_locations.append(np.asarray(destination).reshape(2))
+        sequence_identifiers.append(LOOP_ANCHOR_LOCATION_ID)
+
+    if len(sequence_locations) - 1 != len(modes):
+        # Chain structure doesn't match what we expect (e.g. an unusual free
+        # chain); skip rather than risk corrupting the discretization.
+        return
+
+    changed = False
+
+    for index, mode in enumerate(modes):
+        if not mode.endswith("_loop"):
+            continue
+
+        destination_is_fixed_anchor = (destination is not None) and (index + 1 == len(sequence_locations) - 1)
+        origin_is_fixed_anchor = (origin is not None) and (index == 0)
+
+        if not destination_is_fixed_anchor:
+            # Collapse the destination of this trip onto its origin.
+            sequence_locations[index + 1] = sequence_locations[index].copy()
+            sequence_identifiers[index + 1] = sequence_identifiers[index]
+            changed = True
+
+        elif not origin_is_fixed_anchor:
+            # Destination is a fixed anchor (this is the chain's last trip):
+            # can't move it, so pull the variable origin onto it instead.
+            sequence_locations[index] = sequence_locations[index + 1].copy()
+            sequence_identifiers[index] = sequence_identifiers[index + 1]
+            changed = True
+
+        else:
+            # Both endpoints are fixed activities: a loop trip directly
+            # between e.g. home and work can't be constrained here.
+            print("Warning: cannot enforce loop constraint for person %s (both trip endpoints are fixed activities)" % problem["person_id"])
+
+    if changed:
+        start = 1 if origin is not None else 0
+        end = len(sequence_locations) - (1 if destination is not None else 0)
+
+        discretization["locations"] = np.vstack(sequence_locations[start:end])
+        discretization["identifiers"] = sequence_identifiers[start:end]
+
 def execute(context):
     # Load trips and primary locations
     df_trips = context.stage("synthesis.population.trips").sort_values(by = ["person_id", "trip_index"])
@@ -98,9 +177,13 @@ def execute(context):
         force_field_data = context.stage("synthesis.population.spatial.secondary.force_model.force_field")
 
     # Resampling for calibration
-    resample_distributions(distance_distributions, dict(
+    resample_factors = dict(
         car = 0.0, car_passenger = 0.1, pt = 0.5, bike = 0.0, walk = -0.5
-    ))
+    )
+    resample_factors.update({
+        "%s_loop" % mode: factor for mode, factor in resample_factors.items()
+    })
+    resample_distributions(distance_distributions, resample_factors)
 
     # Segment into subsamples
     processes = context.config("processes")
@@ -182,6 +265,9 @@ def process(context, arguments):
     car = 200.0, car_passenger = 200.0, pt = 200.0,
     bike = 100.0, walk = 100.0
   )
+  thresholds.update({
+    "%s_loop" % mode: threshold for mode, threshold in thresholds.items()
+  })
 
   assignment_objective = DiscretizationErrorObjective(thresholds = thresholds)
   assignment_solver = AssignmentSolver(
@@ -199,6 +285,7 @@ def process(context, arguments):
 
   for problem in find_assignment_problems(df_trips, df_primary):
       result = assignment_solver.solve(problem)
+      apply_loop_constraints(problem, result)
 
       starting_activity_index = problem["activity_index"]
 

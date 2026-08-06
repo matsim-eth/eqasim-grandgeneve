@@ -7,6 +7,8 @@ from data.spatial.ovgk import impute_parallel as impute_ovgk
 EMPLOYEES_DENSITY_RADIUS = 500
 POPULATION_DENSITY_RADIUS = 500
 
+LOOP_DISTANCE_THRESHOLD = 20.0
+
 def configure(context):
     context.stage("synthesis.population.spatial.home.locations")
     context.stage("synthesis.population.spatial.primary.locations")
@@ -14,6 +16,7 @@ def configure(context):
 
     context.stage("synthesis.population.activities")
     context.stage("synthesis.population.sampled")
+    context.stage("synthesis.population.trips")
 
     context.stage("data.spatial.iris")
     context.stage("data.spatial.municipality_types")
@@ -23,6 +26,37 @@ def configure(context):
     context.stage("data.spatial.ovgk")
 
     context.config("processes", volatile = True)
+
+def tag_short_assigned_trips(df_locations, df_trips, threshold = LOOP_DISTANCE_THRESHOLD):
+    """Some trips only turn out to be very short once secondary locations
+    have actually been assigned (e.g. a sampled destination snapping to a
+    facility close to the origin), even if they weren't already tagged as
+    "_loop" by the HTS/survey stage. Catch those here the same way
+    data.hts.edgt_74.adisp_merge.merge.tag_short_trip_loop_mode does for the
+    survey data: by suffixing their mode with "_loop"."""
+    df_distances = df_locations[["person_id", "activity_index", "geometry"]].rename(
+        columns = { "activity_index": "trip_index" }
+    ).sort_values(by = ["person_id", "trip_index"])
+    df_distances["euclidean_distance"] = df_distances["geometry"].distance(df_distances["geometry"].shift(-1))
+
+    df_trips = df_trips.merge(
+        df_distances[["person_id", "trip_index", "euclidean_distance"]],
+        on = ["person_id", "trip_index"], how = "left"
+    )
+
+    df_trips["mode"] = df_trips["mode"].astype(str)
+    already_tagged = df_trips["mode"].str.endswith("_loop")
+    newly_short = (df_trips["euclidean_distance"] < threshold) & ~already_tagged
+
+    n = len(df_trips)
+    print("Trips newly tagged as _loop after secondary location assignment (euclidean distance < %.0f m): %d / %d (%.2f%%)" % (
+        threshold, newly_short.sum(), n, 100 * newly_short.sum() / n
+    ))
+
+    df_trips.loc[newly_short, "mode"] += "_loop"
+    df_trips["mode"] = df_trips["mode"].astype("category")
+
+    return df_trips.drop(columns = ["euclidean_distance"])
 
 def execute(context):
     df_home = context.stage("synthesis.population.spatial.home.locations")
@@ -134,4 +168,6 @@ def execute(context):
 
     print(df_locations.columns)
 
-    return df_locations
+    df_trips = tag_short_assigned_trips(df_locations, context.stage("synthesis.population.trips"))
+
+    return df_locations, df_trips

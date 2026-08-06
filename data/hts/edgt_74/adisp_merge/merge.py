@@ -190,6 +190,44 @@ def find_distance_to_perimeter(df_persons, df_zones, df_cantons):
     return df_persons
 
 
+def tag_short_trip_loop_mode(df_trips, threshold = 10.0):
+    """Trips shorter than `threshold` metres of crow-fly distance
+    (euclidean_distance, as carried through from the surveys' D11 field)
+    rarely have a meaningful purpose: they typically correspond to a walk
+    or car tour around home. Report their share (per survey area and
+    overall, unweighted and trip-weighted) and tag them by suffixing their
+    mode with "_loop" (e.g. "car" -> "car_loop") so they can be told apart
+    from genuine trips of that mode downstream."""
+    distance = pd.to_numeric(df_trips["euclidean_distance"], errors = "coerce")
+    valid = distance.notna()
+    is_short = (distance < threshold) & valid
+
+    print(f"Share of trips with euclidean distance < {threshold:.0f} m:")
+
+    if valid.sum() < len(distance):
+        print(f"  ({len(distance) - valid.sum()} / {len(distance)} trips have no euclidean distance and are excluded)")
+
+    for area in list(df_trips["edgt_area"].unique()) + ["all"]:
+        f = valid if area == "all" else valid & (df_trips["edgt_area"] == area)
+
+        if f.sum() == 0:
+            continue
+
+        area_is_short = is_short[f]
+        weights = df_trips.loc[f, "trip_weight"]
+
+        unweighted = area_is_short.mean()
+        weighted = weights[area_is_short].sum() / weights.sum()
+
+        print(f"  {area}: {100 * unweighted:.2f}% unweighted ({area_is_short.sum()} / {f.sum()} trips), {100 * weighted:.2f}% weighted")
+
+    df_trips["mode"] = df_trips["mode"].astype(str)
+    df_trips.loc[is_short, "mode"] += "_loop"
+    df_trips["mode"] = df_trips["mode"].astype("category")
+
+    return df_trips
+
+
 def execute(context):
     annemasse_households, annemasse_persons, annemasse_trips = context.stage("data.hts.edgt_74.adisp_annemasse.reweighted")
     annecy_households, annecy_persons, annecy_trips           = context.stage("data.hts.edgt_74.adisp_annecy.reweighted")
@@ -223,6 +261,8 @@ def execute(context):
 
     df_persons = resolve_residence_zone_ids(df_persons, df_zones, df_points, code_to_dtir)
     df_persons = find_distance_to_perimeter(df_persons, df_zones, df_cantons)
+
+    df_trips = tag_short_trip_loop_mode(df_trips, threshold = 20.0)
 
     context_path = context.path()
     df_persons[[

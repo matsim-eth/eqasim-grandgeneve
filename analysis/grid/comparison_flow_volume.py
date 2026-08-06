@@ -52,7 +52,7 @@ def execute(context):
         # from simulation cache
         df_trips = context.stage("synthesis.population.trips")
         df_persons = context.stage("synthesis.population.enriched")[["person_id", "household_id","age"]]
-        df_locations = context.stage("synthesis.population.spatial.locations")[[
+        df_locations = context.stage("synthesis.population.spatial.locations")[0][[
             "person_id", "activity_index", "geometry"
         ]]
         df_trips["preceding_activity_index"] = df_trips["trip_index"]

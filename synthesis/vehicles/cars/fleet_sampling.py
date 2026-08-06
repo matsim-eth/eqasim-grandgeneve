@@ -135,4 +135,14 @@ def execute(context):
 
     df_vehicles = pd.DataFrame.from_dict(res)
 
+    # "car_loop" legs (very short "went around the block" trips, see
+    # data.hts.edgt_74.adisp_merge.merge.tag_short_trip_loop_mode) need their
+    # own PersonVehicles entry (MATSim keys the map by mode); reuse the same
+    # sampled vehicle characteristics under a distinct vehicle id.
+    df_vehicles_loop = df_vehicles.copy()
+    df_vehicles_loop["mode"] = "car_loop"
+    df_vehicles_loop["vehicle_id"] = df_vehicles_loop["owner_id"].astype(str) + ":car_loop"
+
+    df_vehicles = pd.concat([df_vehicles, df_vehicles_loop])
+
     return df_vehicle_types, df_vehicles

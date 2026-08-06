@@ -9,24 +9,23 @@ def configure(context):
     acquisition_sample_size = context.config("acquisition_sample_size")
 
     bs.configure(context, "synthesis.population.spatial.locations", acquisition_sample_size)
-    bs.configure(context, "synthesis.population.trips", acquisition_sample_size)
 
 def execute(context):
     acquisition_sample_size = context.config("acquisition_sample_size")
 
     probabilities = np.linspace(0.0, 1.0, 20)
-    modes = ["car", "car_passenger", "pt", "bike", "walk"]
+    base_modes = ["car", "car_passenger", "pt", "bike", "walk"]
+    modes = base_modes + ["%s_loop" % mode for mode in base_modes]
 
     quantiles = { mode : [] for mode in modes }
 
-    generator = zip(
-        bs.get_stages(context, "synthesis.population.spatial.locations", acquisition_sample_size),
-        bs.get_stages(context, "synthesis.population.trips", acquisition_sample_size)
-    )
+    generator = bs.get_stages(context, "synthesis.population.spatial.locations", acquisition_sample_size)
 
     with context.progress(label = "Processing distance data ...", total = acquisition_sample_size) as progress:
         for df_locations, df_trips in generator:
             # Load locations and calculate euclidean distances
+            # (df_trips already carries "_loop"-tagged modes, see
+            # synthesis.population.spatial.locations.tag_short_assigned_trips)
             df_locations = df_locations[["person_id", "activity_index", "geometry"]].rename(columns = { "activity_index": "trip_index" })
             df_locations["euclidean_distance"] = df_locations["geometry"].distance(df_locations["geometry"].shift(-1))
 

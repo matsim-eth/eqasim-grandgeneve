@@ -7,7 +7,7 @@ working_directory: /home/asallard/Documents/Tests/caches/cache_geneva
 # This section defines which parts of the pipeline should be run
 run:
   # - data.spatial.municipality_types
-  # - data.hts.edgt_74.adisp_merge.merge
+  #- data.hts.edgt_74.adisp_merge.merge
   # - synthesis.population.cross_perimeter
   - synthesis.output
   # - analysis.reference.hts.chains
@@ -43,7 +43,7 @@ config:
   # Define sampling rate for the output population #
   ##################################################
   
-  sampling_rate: 0.01
+  sampling_rate: 0.1
 
   #################################
   # household travel survey (HTS) #

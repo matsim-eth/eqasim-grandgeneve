@@ -6,7 +6,8 @@ import matsim.runtime.eqasim as eqasim
 def configure(context):
     context.config("mode_choice", False)
     context.config("with_motorcycles", False)
-    
+    context.config("with_loop_modes", False)
+
     context.stage("matsim.scenario.population")
     context.stage("matsim.scenario.households")
     context.stage("matsim.scenario.vehicles")
@@ -101,14 +102,30 @@ def execute(context):
     ])
     assert os.path.exists("%s/%sconfig.xml" % (context.path(), context.config("output_prefix")))
 
-    # Optionally, enable motorcycles
-    if context.config("with_motorcycles"):
+    # Optionally, enable motorcycles and/or "_loop" modes (very short,
+    # "went around the block" trips, see
+    # data.hts.edgt_74.adisp_merge.merge.tag_short_trip_loop_mode) as
+    # network-routed modes rather than falling back to MATSim defaults.
+    with_motorcycles = context.config("with_motorcycles")
+    with_loop_modes = context.config("with_loop_modes")
+
+    if with_motorcycles or with_loop_modes:
+        main_modes = ["car"]
+        seep_modes = ["bike"]
+
+        if with_motorcycles:
+            main_modes.append("motorcycle")
+            seep_modes.append("motorcycle")
+
+        if with_loop_modes:
+            main_modes += ["car_loop", "car_passenger_loop"]
+
         eqasim.run(context, "org.eqasim.core.scenario.config.EditConfig", [
             "--input-path", "%sconfig.xml" % context.config("output_prefix"),
             "--output-path", "%sconfig.xml" % context.config("output_prefix"),
-            "--config:qsim.mainMode", "car,motorcycle",
+            "--config:qsim.mainMode", ",".join(main_modes),
             "--config:qsim.linkDynamics", "SeepageQ",
-            "--config:qsim.seepMode", "bike,motorcycle"
+            "--config:qsim.seepMode", ",".join(seep_modes)
     ])
 
     # Add urban attributes to population and network

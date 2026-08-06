@@ -13,7 +13,6 @@ def configure(context):
 
     context.stage("synthesis.population.enriched")
     context.stage("synthesis.population.activities")
-    context.stage("synthesis.population.trips")
     context.stage("synthesis.vehicles.vehicles")
     context.stage("synthesis.population.spatial.locations")
     context.stage("documentation.meta_output")
@@ -106,7 +105,8 @@ def execute(context):
     df_activities["preceding_trip_index"] = df_activities["preceding_trip_index"].astype(int)
     
     # Prepare spatial data sets
-    df_locations = context.stage("synthesis.population.spatial.locations")[[
+    df_spatial_locations, df_spatial_trips = context.stage("synthesis.population.spatial.locations")
+    df_locations = df_spatial_locations[[
         "person_id",
         "iris_id", "commune_id", "departement_id", "region_id",
         "activity_index",
@@ -175,7 +175,11 @@ def execute(context):
         df_households.to_parquet("%s/%shouseholds.parquet" % (output_path, output_prefix))
 
     # Prepare trips
-    df_trips = context.stage("synthesis.population.trips").rename(
+    # (df_spatial_trips carries "_loop"-tagged modes, see
+    # synthesis.population.spatial.locations.tag_short_assigned_trips, so
+    # this matches the mode actually exported to MATSim rather than the raw
+    # synthesis.population.trips.)
+    df_trips = df_spatial_trips.rename(
         columns = {
             "is_first_trip": "is_first",
             "is_last_trip": "is_last"
@@ -192,6 +196,11 @@ def execute(context):
         "preceding_purpose", "following_purpose",
         "is_first", "is_last", "mode"
     ]]
+
+    is_loop_trip = df_trips["mode"].astype(str).str.endswith("_loop")
+    print("Share of loop trips (mode ending in _loop) in final output: %d / %d (%.2f%%)" % (
+        is_loop_trip.sum(), len(df_trips), 100 * is_loop_trip.mean()
+    ))
 
     if context.config("mode_choice"):
         trips_path = "%s/mode_choice/output_trips.csv" % context.path("matsim.simulation.prepare")
