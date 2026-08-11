@@ -15,6 +15,10 @@ def configure(context):
 
     context.stage("synthesis.vehicles.vehicles")
 
+    context.config("generate_outbound_flows")
+    if context.config("generate_outbound_flows"):
+        context.stage("synthesis.population.spatial.primary.locations")
+
 PERSON_FIELDS = [
     "person_id", "household_income", "car_availability", "bike_availability",
     "census_household_id", "census_person_id", "household_id",
@@ -113,6 +117,21 @@ def execute(context):
 
     df_persons = context.stage("synthesis.population.enriched")
     df_persons = df_persons.sort_values(by = ["household_id", "person_id"])
+
+    # Boat commuters (synthesis.population.spatial.primary.locations) get a
+    # fixed home->work->home boat chain (see synthesis.population.trips_boat),
+    # so they should never be offered a car leg; forced here rather than in
+    # synthesis.population.enriched, which the boat-commuter selection itself
+    # depends on (via primary.candidates) and would create a stage cycle.
+    # Household-level car_availability (matsim.scenario.households) is left
+    # untouched -- this only affects the boat commuter's own person record.
+    if context.config("generate_outbound_flows"):
+        df_boat_users = context.stage("synthesis.population.spatial.primary.locations")[2]
+        if len(df_boat_users) > 0:
+            df_persons = df_persons.copy()
+            df_persons["car_availability"] = df_persons["car_availability"].astype(str)
+            df_persons.loc[df_persons["person_id"].isin(df_boat_users["person_id"]), "car_availability"] = "none"
+            df_persons["car_availability"] = df_persons["car_availability"].astype("category")
 
     person_fields = PERSON_FIELDS
     

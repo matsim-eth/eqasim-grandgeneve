@@ -26,6 +26,10 @@ def configure(context):
     if context.config("mode_choice", False):
         context.stage("matsim.simulation.prepare")
 
+    context.config("generate_outbound_flows")
+    if context.config("generate_outbound_flows"):
+        context.stage("synthesis.population.spatial.primary.locations")
+
 
 def validate(context):
     output_path = context.config("output_path")
@@ -80,11 +84,26 @@ def execute(context):
         columns = { "has_license": "has_driving_license" }
     )
 
+    # Boat commuters (synthesis.population.spatial.primary.locations) get a
+    # fixed home->work->home boat chain (see synthesis.population.trips_boat),
+    # so they should never be offered a car leg; forced here rather than in
+    # synthesis.population.enriched, which the boat-commuter selection itself
+    # depends on (via primary.candidates) and would create a stage cycle.
+    # Household-level car_availability (households.csv below) is left
+    # untouched -- this only affects the boat commuter's own person record.
+    if context.config("generate_outbound_flows"):
+        df_boat_users = context.stage("synthesis.population.spatial.primary.locations")[2]
+        if len(df_boat_users) > 0:
+            df_persons = df_persons.copy()
+            df_persons["car_availability"] = df_persons["car_availability"].astype(str)
+            df_persons.loc[df_persons["person_id"].isin(df_boat_users["person_id"]), "car_availability"] = "none"
+            df_persons["car_availability"] = df_persons["car_availability"].astype("category")
+
     columns = [
         "person_id", "household_id",
         "age", "employed", "sex", "socioprofessional_class",
         "has_driving_license", "has_pt_subscription",
-        "census_person_id", "hts_id"
+        "census_person_id", "hts_id", "car_availability"
     ] + context.config("extra_enriched_attributes")
     df_persons = df_persons[columns]
     if "csv" in output_formats:

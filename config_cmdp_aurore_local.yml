@@ -9,7 +9,8 @@ run:
   # - data.spatial.municipality_types
   #- data.hts.edgt_74.adisp_merge.merge
   # - synthesis.population.cross_perimeter
-  - synthesis.output
+  #- synthesis.output
+  - analysis.cross_border_commuters.mode_shares
   # - analysis.reference.hts.chains
   # - synthesis.population.trips_boat
   # - data.gtfs.output
