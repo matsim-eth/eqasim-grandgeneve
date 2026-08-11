@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 """
 Cleans OD data to arrive at OD flows between municipalities for work
@@ -11,7 +12,7 @@ def configure(context):
 
 RENAME = { "COMMUNE" : "origin_id", "DCLT" : "destination_id", "IPONDI" : "weight", "DCETUF" : "destination_id" }
 
-def execute(context):    
+def execute(context):
     
     # Load data
     df_work, df_education = context.stage("data.od.raw")

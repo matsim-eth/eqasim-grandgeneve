@@ -16,7 +16,7 @@ def configure(context):
 
     context.stage("synthesis.population.activities")
     context.stage("synthesis.population.sampled")
-    context.stage("synthesis.population.trips")
+    context.stage("synthesis.population.trips_boat")
 
     context.stage("data.spatial.iris")
     context.stage("data.spatial.municipality_types")
@@ -26,6 +26,10 @@ def configure(context):
     context.stage("data.spatial.ovgk")
 
     context.config("processes", volatile = True)
+
+    context.config("generate_outbound_flows")
+    if context.config("generate_outbound_flows"):
+        context.stage("data.gtfs.boat_trips")
 
 def tag_short_assigned_trips(df_locations, df_trips, threshold = LOOP_DISTANCE_THRESHOLD):
     """Some trips only turn out to be very short once secondary locations
@@ -60,7 +64,7 @@ def tag_short_assigned_trips(df_locations, df_trips, threshold = LOOP_DISTANCE_T
 
 def execute(context):
     df_home = context.stage("synthesis.population.spatial.home.locations")
-    df_work, df_education = context.stage("synthesis.population.spatial.primary.locations")
+    df_work, df_education, df_boat_users = context.stage("synthesis.population.spatial.primary.locations")
     df_secondary = context.stage("synthesis.population.spatial.secondary.locations")[0]
 
     df_persons = context.stage("synthesis.population.sampled")[["person_id", "household_id"]]
@@ -76,6 +80,18 @@ def execute(context):
     df_home_locations = pd.merge(df_home_locations, df_home[["household_id", "geometry"]], on = "household_id")
     df_home_locations["location_id"] = -1
     df_home_locations = df_home_locations[["person_id", "activity_index", "location_id", "geometry"]]
+
+    # Boat commuters' "home" activity is relocated to their departure
+    # harbour (see synthesis.population.trips_boat) rather than their real
+    # dwelling; "work" keeps its normally-assigned location.
+    if context.config("generate_outbound_flows") and len(df_boat_users) > 0:
+        df_ports = context.stage("data.gtfs.boat_trips")["ports"]
+        home_port_geometry = df_boat_users.set_index("person_id")["home_port"].map(
+            df_ports.set_index("port")["geometry"]
+        )
+
+        is_boat_home = df_home_locations["person_id"].isin(home_port_geometry.index)
+        df_home_locations.loc[is_boat_home, "geometry"] = df_home_locations.loc[is_boat_home, "person_id"].map(home_port_geometry).values
 
     # Work locations
     df_work_locations = df_locations[df_locations["purpose"] == "work"]
@@ -168,6 +184,6 @@ def execute(context):
 
     print(df_locations.columns)
 
-    df_trips = tag_short_assigned_trips(df_locations, context.stage("synthesis.population.trips"))
+    df_trips = tag_short_assigned_trips(df_locations, context.stage("synthesis.population.trips_boat"))
 
     return df_locations, df_trips

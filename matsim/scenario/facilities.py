@@ -51,7 +51,7 @@ def execute(context):
 
             # Write primary
 
-            df_work, df_education = context.stage("synthesis.population.spatial.primary.locations")
+            df_work, df_education, _ = context.stage("synthesis.population.spatial.primary.locations")
 
             df_work = df_work.drop_duplicates("location_id").copy()
             df_education = df_education.drop_duplicates("location_id").copy()

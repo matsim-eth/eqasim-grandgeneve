@@ -29,7 +29,7 @@ def configure(context):
 def prepare_locations(context):
     # Load persons and their primary locations
     df_home = context.stage("synthesis.population.spatial.home.locations")
-    df_work, df_education = context.stage("synthesis.population.spatial.primary.locations")
+    df_work, df_education, _ = context.stage("synthesis.population.spatial.primary.locations")
     crs = df_home.crs
 
     df_home = df_home.rename(columns = { "geometry": "home" })

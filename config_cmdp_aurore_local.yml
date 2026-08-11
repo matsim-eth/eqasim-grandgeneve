@@ -11,7 +11,7 @@ run:
   # - synthesis.population.cross_perimeter
   - synthesis.output
   # - analysis.reference.hts.chains
-  # - synthesis.population.sampled
+  # - synthesis.population.trips_boat
   # - data.gtfs.output
   # - data.ban.raw
   # - data.bdtopo.raw
@@ -248,6 +248,11 @@ config:
   swiss_municipalities: "/home/asallard/Euler_data/ch_data/pipeline/spatial/municipality/2022/swissBOUNDARIES3D_1_5_TLM_HOHEITSGEBIET.shp"
   cantons: ["Genève", "Vaud"]
   swiss_municipality_types: "/home/asallard/Euler_data/ch_data/pipeline/spatial/Raumgliederungen.xlsx"
+
+  # Thonon <-> Lausanne/Nyon boat commute mode (data.od.thonon_boat_zones),
+  # reassigns a modelled share of car/pt Thonon work commuters to "boat".
+  # thonon_boat_travel_times_path: cross_border/thonon_boat_travel_times.csv
+  # recompute_thonon_boat_advantage: false
 
   # income_com_path: filosofi_2019/indic-struct-distrib-revenu-2019-COMMUNES.zip
   # income_com_xlsx: FILO2019_DISP_COM.xlsx

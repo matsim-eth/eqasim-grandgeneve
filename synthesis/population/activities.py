@@ -7,10 +7,10 @@ Transforms the synthetic trip table into a synthetic activity table.
 
 def configure(context):
     context.stage("synthesis.population.enriched")
-    context.stage("synthesis.population.trips")
+    context.stage("synthesis.population.trips_boat")
 
 def execute(context):
-    df_activities = context.stage("synthesis.population.trips")
+    df_activities = context.stage("synthesis.population.trips_boat")
 
     # Add trip count
     counts = df_activities.groupby("person_id").size().reset_index(name = "trip_count")["trip_count"].values
