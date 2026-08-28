@@ -9,9 +9,9 @@ run:
   # - data.spatial.municipality_types
   #- data.hts.edgt_74.adisp_merge.merge
   # - synthesis.population.cross_perimeter
-  - synthesis.population.matched
-  - synthesis.population.sampled
-  # - analysis.cross_border_commuters.mode_shares
+  - synthesis.output
+  #- synthesis.population.sampled
+  - analysis.cross_border_commuters.mode_shares
   # - analysis.reference.hts.chains
   # - synthesis.population.trips_boat
   # - data.gtfs.output
@@ -45,7 +45,7 @@ config:
   # Define sampling rate for the output population #
   ##################################################
   
-  sampling_rate: 0.1
+  sampling_rate: 1
 
   #################################
   # household travel survey (HTS) #

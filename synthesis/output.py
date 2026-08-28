@@ -116,6 +116,16 @@ def execute(context):
         columns = { "trip_index": "following_trip_index" }
     )
 
+    # Cross-perimeter agents' single all-day activity is internally tagged
+    # "cross_perimeter" (see synthesis.population.activities) so it can be
+    # excluded from secondary-location assignment; in the final output it's
+    # just a person staying home, so it's reported as "home" like any other
+    # all-day-at-home agent (this also makes them show up in the households/
+    # homes exports below, which key off purpose == "home").
+    df_activities["purpose"] = df_activities["purpose"].astype(str)
+    df_activities.loc[df_activities["purpose"] == "cross_perimeter", "purpose"] = "home"
+    df_activities["purpose"] = df_activities["purpose"].astype("category")
+
     df_activities = pd.merge(
         df_activities, df_persons[["person_id", "household_id"]], on = "person_id")
 
