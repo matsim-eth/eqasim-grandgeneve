@@ -9,8 +9,9 @@ run:
   # - data.spatial.municipality_types
   #- data.hts.edgt_74.adisp_merge.merge
   # - synthesis.population.cross_perimeter
-  #- synthesis.output
-  - analysis.cross_border_commuters.mode_shares
+  - synthesis.population.matched
+  - synthesis.population.sampled
+  # - analysis.cross_border_commuters.mode_shares
   # - analysis.reference.hts.chains
   # - synthesis.population.trips_boat
   # - data.gtfs.output
@@ -83,7 +84,7 @@ config:
   #######################
   
   ## output folder
-  output_path: /home/asallard/Documents/Tests/outputs/output_geneva
+  output_path: /home/asallard/Euler_data/ch_data/pipeline/fr_population_100pct_20260811/
 
   ## output prefix, appended to file names
   output_prefix: cmdp_

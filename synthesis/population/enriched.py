@@ -82,6 +82,17 @@ def execute(context):
     df_population = pd.merge(df_population, df_hts_persons[columns], on="hts_id")
     df_population = pd.merge(df_population, df_hts_households[["hts_household_id", "number_of_bikes"]], on = "hts_household_id")
 
+    # Statistical matching is not guaranteed to respect age when pairing a
+    # synthetic person with an HTS respondent (age_class buckets are coarse,
+    # and sparse combinations can fall back to unconstrained matching), so a
+    # minor can inherit an adult donor's license. Enforce it directly.
+    underage_selector = df_population["age"] < 18
+    n_underage_licensed = int((underage_selector & df_population["has_license"]).sum())
+    print(f"Identified {n_underage_licensed} agents under 18 years but having a driving license.")
+    print("This is due to statistical matching - those agents were not matched using the age variable.")
+    print("Fixing this to ensure consistency of the results.")
+    df_population.loc[underage_selector, "has_license"] = False
+
     # Attach income
     df_income     = context.stage("synthesis.population.income.selected")
     df_population = pd.merge(df_population, df_income[["household_id", "household_income"]], on = "household_id")
