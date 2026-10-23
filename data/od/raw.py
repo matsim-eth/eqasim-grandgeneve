@@ -7,7 +7,7 @@ Loads raw OD data from French census data.
 def configure(context):
     context.config("generate_outbound_flows", "False")
     context.config("data_path")
-    context.config("od_pro_path", "rp_2022/RP2022_mobpro.parquet")
+    context.config("od_pro_path", "rp_2022/RP2023_mobpro.parquet")
     context.config("od_sco_path", "rp_2022/RP2022_mobsco.parquet")
 
     context.stage("data.spatial.codes")
@@ -29,7 +29,8 @@ def execute(context):
             "TRANS"  : pl.Int32,
             "IPONDI" : pl.Float32, 
             "DCLT"   : pl.String,
-            "DCFLT"  : pl.String
+            "DCFLT"  : pl.String,
+            "TP"     : pl.Int32
         }
 
         parquet = pl.read_parquet("{}/{}".format(context.config("data_path"), context.config("od_pro_path")),columns=  list(COLUMNS_DTYPES.keys()))

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find ~/Documents/Tests/EDGT/EDGT_cross_perimeter -maxdepth 2 2>&1)",
+      "Read(//home/asallard/Documents/Tests/EDGT/EDGT_cross_perimeter/**)",
+      "Bash(python3 -c \"import catboost, statsmodels, sklearn; print\\('ok'\\)\")",
+      "Bash(ls /home/asallard/Documents/Tests/caches/cache_geneva 2>/dev/null | head -50; echo \"---\"; find /home/asallard/Documents/Tests/caches/cache_geneva -iname \"*cross_perimeter*\" 2>/dev/null)",
+      "Read(//home/asallard/Documents/Tests/caches/cache_geneva/**)",
+      "Bash(python3 -c ' *)",
+      "Bash(grep \"\\\\.p$\")",
+      "Read(//home/asallard/Documents/Tests/outputs/**)",
+      "Read(//home/asallard/Documents/Tests/outputs/output_geneva/**)"
+    ]
+  }
+}

@@ -9,6 +9,12 @@ and education.
 def configure(context):
     context.stage("data.od.raw")
     context.stage("data.spatial.codes")
+    context.stage("data.od.part_time")
+
+    context.config("random_seed")
+
+# TP (work time) codes of part-time workers: 2 in the RP2022 release, 12 in RP2023
+PART_TIME_CODES = [2, 12]
 
 RENAME = { "COMMUNE" : "origin_id", "DCLT" : "destination_id", "IPONDI" : "weight", "DCETUF" : "destination_id" }
 
@@ -56,6 +62,19 @@ def execute(context):
     assert not np.any(df_work["commute_mode"] == "")
     df_work["commute_mode"] = df_work["commute_mode"].astype("category")    
 
+    # Employment time: 1.0 for full-time workers; for each part-time record,
+    # one draw from the part-time distribution of the labour force survey
+    random = np.random.default_rng(context.config("random_seed"))
+    distribution = context.stage("data.od.part_time")
+    is_part_time = df_work["TP"].isin(PART_TIME_CODES).values
+
+    df_work["employment_time"] = 1.0
+    df_work.loc[is_part_time, "employment_time"] = random.choice(
+        distribution.index.values, size = np.count_nonzero(is_part_time), p = distribution.values)
+
+    # Weight in full-time equivalents (weight * employment time)
+    df_work["fte_weight"] = df_work["weight"] * df_work["employment_time"]
+
     # Clean age range for education
     df_education["AGEREV10"] = df_education["AGEREV10"].astype(int)
     df_education["age_range"] = ""
@@ -68,12 +87,13 @@ def execute(context):
 
     # Aggregate the flows
     print("Aggregating work ...")
-    df_work = df_work.groupby(["origin_id", "destination_id", "commute_mode"],observed=False)["weight"].sum().reset_index()
+    df_work = df_work.groupby(["origin_id", "destination_id", "commute_mode"],observed=False)[["weight", "fte_weight"]].sum().reset_index()
 
     print("Aggregating education ...")
     df_education = df_education.groupby(["origin_id", "destination_id","age_range"],observed=False)["weight"].sum().reset_index()
 
     df_work["weight"] = df_work["weight"].fillna(0.0)
+    df_work["fte_weight"] = df_work["fte_weight"].fillna(0.0)
     df_education["weight"] = df_education["weight"].fillna(0.0)
 
     return df_work, df_education

@@ -9,17 +9,15 @@ run:
   # - data.spatial.municipality_types
   #- data.hts.edgt_74.adisp_merge.merge
   # - synthesis.population.cross_perimeter
-  - synthesis.output
+  #- synthesis.output
   #- synthesis.population.sampled
-  - analysis.cross_border_commuters.mode_shares
+  - analysis.debug.mode_shares
   # - analysis.reference.hts.chains
   # - synthesis.population.trips_boat
   # - data.gtfs.output
   # - data.ban.raw
   # - data.bdtopo.raw
   # - data.ban.raw
-  # - matsim.runtime.pt2matsim
-  # - matsim.output # Uncomment, if you want to run the full simulation (you'll need Java for that)
 
 # Here the configuraiton of the pipeline starts
 config:
@@ -45,7 +43,7 @@ config:
   # Define sampling rate for the output population #
   ##################################################
   
-  sampling_rate: 1
+  sampling_rate: 1.0
 
   #################################
   # household travel survey (HTS) #
@@ -84,7 +82,7 @@ config:
   #######################
   
   ## output folder
-  output_path: /home/asallard/Euler_data/ch_data/pipeline/fr_population_100pct_20260811/
+  output_path: /home/asallard/Documents/Tests/outputs/output_geneva/
 
   ## output prefix, appended to file names
   output_prefix: cmdp_
@@ -239,8 +237,8 @@ config:
   # bpe_path: bpe_2021/bpe21_ensemble_xy_csv.zip
   # bpe_csv: bpe21_ensemble_xy.csv
 
-  gtfs_path: gtfs_cmdp
-  #gtfs_files: ["/home/asallard/Documents/Data/fr_data/gtfs_cmdp/merged_gtfs.zip"]
+  #gtfs_path: gtfs_cmdp
+  gtfs_files: ["/home/asallard/Documents/Data/pipeline/gtfs/merged_gtfs.zip"]
 
   ##############################
   # SEND PEOPLE TO SWITZERLAND #
