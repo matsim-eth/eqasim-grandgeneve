@@ -190,6 +190,33 @@ def find_distance_to_perimeter(df_persons, df_zones, df_cantons):
     return df_persons
 
 
+def find_usual_workplace(df_persons):
+    """Usual place of work (and of study) of employed persons (and students), known whether or not they
+    travelled to it on the survey day: distance in metres (DP15) and whether
+    it is abroad (GP5 = 99xxx, almost only 99090 = Switzerland), and whether
+    they work part-time (P9 = 2). Used for statistical matching with
+    work_location_method = "before_matching"."""
+    df_persons["usual_work_distance"] = pd.to_numeric(df_persons["DP15"], errors = "coerce").where(df_persons["employed"])
+    df_persons["usual_work_abroad"] = df_persons["employed"] & df_persons["GP5"].fillna("").str.startswith("99")
+    df_persons["part_time"] = df_persons["employed"] & (df_persons["P9"] == "2")
+
+    # Usual commute mode (no such question in the survey, so from the car use
+    # for the trip to work, P16, and the PT subscription): car when driving
+    # all the way (P16 = 1, or 6 = all or part of the way), pt when driving
+    # part of the way (park and ride) or holding a subscription, active
+    # otherwise; home when working at home. Their work trips on the survey
+    # day are respectively 99%, 65% and about 50% (walk, bike) by that mode.
+    commute_mode = np.where(df_persons["P16"].isin(["1", "6"]), "car",
+        np.where((df_persons["P16"] == "2") | df_persons["has_pt_subscription"], "pt", "active"))
+    commute_mode = np.where(df_persons["usual_work_distance"] == 0, "home", commute_mode)
+    df_persons["usual_commute_mode"] = np.where(df_persons["employed"], commute_mode, "none")
+
+    # Usual place of study, as for work (DP15, GP5 also apply to students)
+    df_persons["usual_study_distance"] = pd.to_numeric(df_persons["DP15"], errors = "coerce").where(df_persons["studies"])
+    df_persons["usual_study_abroad"] = df_persons["studies"] & df_persons["GP5"].fillna("").str.startswith("99")
+    return df_persons
+
+
 def tag_short_trip_loop_mode(df_trips, threshold = 10.0):
     """Trips shorter than `threshold` metres of crow-fly distance
     (euclidean_distance, as carried through from the surveys' D11 field)
@@ -261,6 +288,7 @@ def execute(context):
 
     df_persons = resolve_residence_zone_ids(df_persons, df_zones, df_points, code_to_dtir)
     df_persons = find_distance_to_perimeter(df_persons, df_zones, df_cantons)
+    df_persons = find_usual_workplace(df_persons)
 
     df_trips = tag_short_trip_loop_mode(df_trips, threshold = 20.0)
 

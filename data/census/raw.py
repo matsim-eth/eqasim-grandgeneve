@@ -25,7 +25,10 @@ COLUMNS_DTYPES = {
     "IRIS":      "str",
     "REGION":    "str", 
     "SEXE":      "str",
-    "TACT":      "str", 
+    "TACT":      "str",
+    "ILT":       "str",
+    "ILETUD":    "str",
+    "TP":        "str",
     "TRANS":     "str",
     "VOIT":      "str", 
     "DEROU":     "str"
@@ -53,6 +56,6 @@ def execute(context):
 
 def validate(context):
     if not os.path.exists("{}/{}".format(context.config("data_path"), context.config("census_path"))):
-        raise RuntimeError("RP 2022 data is not available")
+        raise RuntimeError("Census data is not available at %s" % context.config("census_path"))
 
     return os.path.getsize("{}/{}".format(context.config("data_path"), context.config("census_path")))

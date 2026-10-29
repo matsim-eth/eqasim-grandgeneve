@@ -16,6 +16,15 @@ def configure(context):
     context.config("random_seed")
     context.config("education_location_source", "bpe")
 
+    context.config("work_location_method", "after_matching")
+    if context.config("work_location_method") == "before_matching":
+        context.stage("synthesis.population.spatial.primary.work_first")
+
+    context.config("education_location_method", "after_matching")
+    if context.config("education_location_method") == "before_matching":
+        context.stage("synthesis.population.spatial.primary.education_first")
+        context.stage("data.od.cleaned")
+
 
 EDUCATION_MAPPING = {
     "primary_school": ["C1"],
@@ -164,6 +173,113 @@ def process(context, purpose, random, df_persons, df_od, df_locations,step_name)
     return df_result[["origin_id", "destination_id", "location_id"]]
 
 
+def draw_missing_destinations(random, df_persons, df_od, df_locations, df_od_by_age = None):
+    """destination_id, drawn from the OD by home commune (commune_id), for
+    the persons that have none yet; only destinations with a location. With
+    df_od_by_age (OD with an age_range column), by home commune and age range
+    when it has records for them, by home commune from df_od otherwise."""
+    f_missing = df_persons["destination_id"].isna()
+    destinations_with_location = set(df_locations["commune_id"].astype(str))
+
+    def prepare(df):
+        df = df.astype({ "origin_id": str, "destination_id": str })
+        return df[df["destination_id"].isin(destinations_with_location) & (df["weight"] > 0)]
+
+    od_groups = prepare(df_od).groupby("origin_id")
+    od_age_groups = None if df_od_by_age is None else prepare(df_od_by_age).astype({ "age_range": str }).groupby(["origin_id", "age_range"])
+    person_keys = ["commune_id"] if df_od_by_age is None else ["commune_id", "age_range"]
+
+    for key, df_origin in df_persons[f_missing].groupby(person_keys):
+        if od_age_groups is not None and key in od_age_groups.groups:
+            df_cell = od_age_groups.get_group(key)
+        else:
+            df_cell = od_groups.get_group(key[0])
+        weights = df_cell.groupby("destination_id")["weight"].sum()
+        destinations = np.repeat(weights.index.values, random.multinomial(len(df_origin), weights.values / weights.sum()))
+        random.shuffle(destinations)
+        df_persons.loc[df_origin.index, "destination_id"] = destinations
+
+    return f_missing
+
+
+def process_work_first(context, random, df_persons, df_od, df_locations):
+    """Work candidates with work_location_method = "before_matching": persons
+    with a work trip keep the work commune of
+    synthesis.population.spatial.primary.work_first; the others (not employed
+    in the census, but matched with a working HTS respondent) get one drawn
+    from MOBPRO by home commune. Candidate locations are then sampled per
+    (home commune, work commune) like in process, and matched to the persons
+    by commute distance in synthesis.population.spatial.primary.locations.
+    Returns the candidates and the work commune (destination_id) of each
+    person."""
+    df_persons = df_persons[df_persons["has_work_trip"]][["person_id", "commune_id"]].copy()
+    df_persons["commune_id"] = df_persons["commune_id"].astype(str)
+
+    df_work_first = context.stage("synthesis.population.spatial.primary.work_first")
+    df_persons = pd.merge(df_persons, df_work_first[["person_id", "work_commune_id"]].rename(
+        columns = { "work_commune_id": "destination_id" }), on = "person_id", how = "left")
+
+    f_missing = draw_missing_destinations(random, df_persons, df_od, df_locations)
+    print("Work candidates: %d persons with a work trip, %d of them without census workplace (destination drawn by home commune)" % (
+        len(df_persons), f_missing.sum()))
+
+    df_flow = df_persons.rename(columns = { "commune_id": "origin_id" }).groupby(["origin_id", "destination_id"]).size().reset_index(name = "count")
+    df_flow = df_flow.sort_values(["origin_id", "destination_id"])
+
+    unique_ids = df_flow["destination_id"].unique()
+    random_seeds = random.integers(0, int(1e6), len(unique_ids))
+
+    df_result = []
+
+    with context.progress(label = "Sampling work destinations", total = len(unique_ids)) as progress:
+        with context.parallel(dict(df_locations = df_locations, df_flow = df_flow)) as parallel:
+            for df_partial in parallel.imap_unordered(sample_locations, zip(unique_ids, random_seeds)):
+                df_result.append(df_partial)
+
+    df_result = pd.concat(df_result).sort_values(["origin_id", "destination_id"])
+
+    return df_result[["origin_id", "destination_id", "location_id"]], df_persons.set_index("person_id")["destination_id"]
+
+
+def process_education_first(context, random, df_persons, df_od, df_locations):
+    """Education locations with education_location_method =
+    "before_matching", one per person (person_id, origin_id, destination_id,
+    location_id): persons with an education trip keep the place of study of
+    synthesis.population.spatial.primary.education_first, already matched
+    with the HTS respondent by distance class; the others (not students in
+    the census, but matched with an HTS respondent having an education trip)
+    get a commune drawn from MOBSCO by home commune and age range, and a
+    location fitting their age range in it."""
+    # Imported here, as education_first imports EDUCATION_MAPPING from this module
+    import synthesis.population.spatial.primary.education_first as education_first
+    import synthesis.population.spatial.primary.work_first as work_first
+
+    df_persons = df_persons[df_persons["has_education_trip"]][["person_id", "commune_id", "age_range"]].copy()
+    df_persons["commune_id"] = df_persons["commune_id"].astype(str)
+
+    df_education_first = context.stage("synthesis.population.spatial.primary.education_first")
+    df_persons = pd.merge(df_persons, df_education_first[["person_id", "education_commune_id", "education_location_id"]].rename(
+        columns = { "education_commune_id": "destination_id", "education_location_id": "location_id" }), on = "person_id", how = "left")
+
+    _, df_od_by_age = context.stage("data.od.cleaned")
+    df_persons["age_range"] = df_persons["age_range"].astype(str)
+    f_missing = draw_missing_destinations(random, df_persons, df_od, df_locations, df_od_by_age)
+
+    df_locations = df_locations.assign(commune_id = df_locations["commune_id"].astype(str), education_type = df_locations["education_type"].astype(str))
+    for range_name in EDUCATION_MAPPING.keys():
+        f_range = f_missing & (df_persons["age_range"] == range_name)
+        if f_range.any():
+            df_persons.loc[f_range, "location_id"] = work_first.assign_locations(
+                random, df_persons.loc[f_range, "destination_id"].reset_index(drop = True),
+                education_first.typed_locations(df_locations, range_name)).values
+
+    print("Education candidates: %d persons with an education trip, %d of them without census place of study (drawn by home commune)" % (
+        len(df_persons), f_missing.sum()))
+
+    df_persons = df_persons.rename(columns = { "commune_id": "origin_id" })
+    return df_persons[["person_id", "origin_id", "destination_id", "location_id"]], df_persons.set_index("person_id")["destination_id"]
+
+
 def execute(context):
     # Prepare population data
     df_persons = context.stage("synthesis.population.enriched")[["person_id", "household_id", "age_range"]].copy()
@@ -188,12 +304,20 @@ def execute(context):
 
     df_locations = context.stage("synthesis.locations.work")
     df_locations["weight"] = df_locations["employees"]
-    df_work = process(context, "work", random, df_persons,
-        df_work_od, df_locations, "work"
-    )
+
+    if context.config("work_location_method") == "before_matching":
+        df_work, work_destination = process_work_first(context, random, df_persons, df_work_od, df_locations)
+        df_persons["work_destination_id"] = df_persons["person_id"].map(work_destination)
+    else:
+        df_work = process(context, "work", random, df_persons,
+            df_work_od, df_locations, "work"
+        )
 
     df_locations = context.stage("synthesis.locations.education")
-    if context.config("education_location_source") == 'bpe':
+    if context.config("education_location_method") == "before_matching":
+        df_education, education_destination = process_education_first(context, random, df_persons, df_education_od, df_locations)
+        df_persons["education_destination_id"] = df_persons["person_id"].map(education_destination)
+    elif context.config("education_location_source") == 'bpe':
         df_education = process(context, "education", random, df_persons, df_education_od, df_locations,"education")
     else :
         df_education = []
@@ -205,10 +329,13 @@ def execute(context):
             )
         df_education = pd.concat(df_education)
 
+    person_columns = ["person_id", "household_id", "age_range", "commune_id", "has_work_trip", "has_education_trip"]
+    for column in ["work_destination_id", "education_destination_id"]:
+        if column in df_persons:
+            person_columns.append(column)
+
     return dict(
         work_candidates = df_work,
         education_candidates = df_education,
-        persons = df_persons[df_persons["has_work_trip"] | df_persons["has_education_trip"]][[
-            "person_id", "household_id", "age_range", "commune_id", "has_work_trip", "has_education_trip"
-        ]]
+        persons = df_persons[df_persons["has_work_trip"] | df_persons["has_education_trip"]][person_columns]
     )

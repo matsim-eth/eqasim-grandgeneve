@@ -50,9 +50,13 @@ def execute(context):
         "P25", "P26",
     ]
 
+    # Usual place of work / study (distance, commune) and full / part-time
+    # work (P9), see data.hts.edgt_74.adisp_merge.merge
+    USUAL_WORKPLACE_COLUMNS = ["DP15", "GP5", "P9"]
+
     # Finish up
     df_households = df_households[hts.HOUSEHOLD_COLUMNS + ["edgt_household_id", "M6"]]
-    df_persons = df_persons[hts.PERSON_COLUMNS + ["edgt_person_id", "edgt_household_id", "ZFP"] + CROSSPERIM_MODEL_COLUMNS]
+    df_persons = df_persons[hts.PERSON_COLUMNS + ["edgt_person_id", "edgt_household_id", "ZFP"] + CROSSPERIM_MODEL_COLUMNS + USUAL_WORKPLACE_COLUMNS]
     df_trips = df_trips[hts.TRIP_COLUMNS + ["routed_distance", "euclidean_distance", "origin_zone_id", "destination_zone_id", "edgt_person_id", "edgt_household_id", "edgt_trip_id"]]
 
     hts.check(df_households, df_persons, df_trips)

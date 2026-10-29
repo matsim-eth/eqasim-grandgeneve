@@ -33,6 +33,7 @@ PERSON_COLUMNS = {
     "P19": str, "P20": str, "P21": str, "P22": str, "P23": str, "P24": str, # frequency of use: walk, bike (driver), motorized 2-wheeler (driver), car (driver), car (passenger), urban PT
     "P25": str, # made a trip "yesterday" within the survey area / absent / etc.
     "P26": str, # work situation "yesterday" (worked out, teleworked, on leave, ...)
+    "DP15": str, "GP5": str, # distance to and commune of the usual place of work / study (GP5 99xxx: abroad)
     "COEP": float, "COE1": float, # weights,
     "JOUR": str # day of the week, 1 = monday to 5 = friday
 }

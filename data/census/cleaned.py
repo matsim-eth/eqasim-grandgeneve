@@ -8,6 +8,18 @@ This stage cleans the French population census:
   - Clean up spatial information and sociodemographic attributes
 """
 
+# Place of work (ILT) and of study (ILETUD): 1 home commune, 2-6 elsewhere in
+# France (same departement, region, other region, overseas), 7 abroad; Z for
+# non-workers / non-students
+PLACE_OF_WORK = {
+    "1": "home_commune",
+    "2": "france", "3": "france", "4": "france", "5": "france", "6": "france",
+    "7": "abroad"
+}
+
+# Working time (TP) of part-time workers: 2 up to RP2022, 12 in RP2023
+PART_TIME_CODES = ["2", "12"]
+
 def configure(context):
     context.stage("data.census.raw")
     context.stage("data.spatial.codes")
@@ -42,6 +54,7 @@ def execute(context):
 
     # Spatial information
     df["departement_id"] = df["DEPT"].astype("category")
+    df["canton_id"] = df["CANTVILLE"].astype("category")
 
     df["commune_id"] = df["IRIS"].str[:5]
     f_undefined = df["commune_id"].str.contains("Z")
@@ -80,9 +93,14 @@ def execute(context):
 
     # Clean employment
     df["employed"] = df["TACT"] == "11"
+    df["part_time"] = df["employed"] & df["TP"].isin(PART_TIME_CODES)
+
+    # Place of work
+    df["place_of_work"] = df["ILT"].map(PLACE_OF_WORK).where(df["employed"]).astype("category")
 
     # Studies
     df["studies"] = df["ETUD"] == "1"
+    df["place_of_study"] = df["ILETUD"].map(PLACE_OF_WORK).where(df["studies"]).astype("category")
 
     # Number of vehicles
     df["number_of_cars"] = df["VOIT"].apply(
@@ -131,9 +149,9 @@ def execute(context):
 
     df = df[[
         "person_id", "household_id", "weight",
-        "iris_id", "commune_id", "departement_id",
+        "iris_id", "commune_id", "canton_id", "departement_id",
         "age", "sex", "couple",
-        "commute_mode", "employed", "studies",
+        "commute_mode", "employed", "part_time", "place_of_work", "studies", "place_of_study",
         "number_of_cars", "number_of_motorcycles", "number_of_vehicles", "use_motorcycle",
         "household_size", "consumption_units", "socioprofessional_class"
     ]]

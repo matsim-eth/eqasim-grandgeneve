@@ -32,6 +32,14 @@ def configure(context):
 
             context.config("random_seed")
 
+            context.config("work_location_method", "after_matching")
+            if context.config("work_location_method") == "before_matching":
+                context.stage("synthesis.population.spatial.primary.work_first")
+
+            context.config("education_location_method", "after_matching")
+            if context.config("education_location_method") == "before_matching":
+                context.stage("synthesis.population.spatial.primary.education_first")
+
 
 def execute(context):
     is_edgt74_adisp = context.config("hts") == "edgt_74" and context.config("edgt74_version") == "adisp"
@@ -176,5 +184,23 @@ def execute(context):
 
         random = np.random.default_rng(context.config("random_seed"))
         df_population["is_crossperim_person"] = random.random(len(df_population)) < probability
+
+        if context.config("education_location_method") == "before_matching":
+            # Census students are cross-perimeter exactly when their MOBSCO
+            # place of study is outside the modelled area (for employed
+            # students, the workplace prevails below)
+            df_education_first = context.stage("synthesis.population.spatial.primary.education_first")
+            education_outside = df_population["person_id"].map(df_education_first.set_index("person_id")["education_outside"])
+            f_students = education_outside.notna()
+            df_population.loc[f_students, "is_crossperim_person"] = education_outside[f_students].astype(bool)
+
+        if context.config("work_location_method") == "before_matching":
+            # Census-employed agents are cross-perimeter exactly when their
+            # MOBPRO workplace is outside the modelled area (the survey
+            # perimeters behind the logit are much smaller than this area)
+            df_work_first = context.stage("synthesis.population.spatial.primary.work_first")
+            work_outside = df_population["person_id"].map(df_work_first.set_index("person_id")["work_outside"])
+            f_employed = work_outside.notna()
+            df_population.loc[f_employed, "is_crossperim_person"] = work_outside[f_employed].astype(bool)
 
     return df_population

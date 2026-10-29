@@ -87,12 +87,32 @@ def execute(context):
         (df["iris_id"] == "undefined").sum(), len(df), 100 * (df["iris_id"] == "undefined").mean()
     ))
 
-    # Check whether all communes in BPE are within our set of requested data
+    # Check whether all communes in BPE are within our set of requested data.
+    # Codes that do not exist in the configured geography (e.g. communes merged
+    # since the BPE edition) are replaced by the commune containing the
+    # coordinates; observations that cannot be located that way are dropped.
     df_municipalities = context.stage("data.spatial.municipalities")
     excess_communes = set(df["commune_id"].unique()) - set(df_municipalities["commune_id"].unique())
 
     if len(excess_communes) > 0:
-        raise RuntimeError("Found additional communes: %s" % excess_communes)
+        f_excess = df["commune_id"].isin(excess_communes)
+
+        df_points = gpd.GeoDataFrame(df.loc[f_excess & df["x"].notna(), ["x", "y"]],
+            geometry = gpd.points_from_xy(df.loc[f_excess & df["x"].notna(), "x"], df.loc[f_excess & df["x"].notna(), "y"]), crs = "EPSG:2154")
+        df_points = gpd.sjoin(df_points, df_municipalities[["commune_id", "geometry"]], predicate = "within", how = "inner")
+        df_points = df_points[~df_points.index.duplicated()]
+
+        df["commune_id"] = df["commune_id"].cat.add_categories(
+            sorted(set(df_municipalities["commune_id"].astype(str)) - set(df["commune_id"].cat.categories)))
+        df.loc[df_points.index, "commune_id"] = df_points["commune_id"].astype(str).values
+        df.loc[df_points.index, "iris_id"] = "undefined"
+
+        f_dropped = f_excess & ~df.index.isin(df_points.index)
+        print("Found observations in communes unknown to the configured geography %s: %d relocated by coordinates, %d dropped" % (
+            excess_communes, len(df_points), f_dropped.sum()))
+
+        df = df[~f_dropped].copy()
+        df["commune_id"] = df["commune_id"].cat.remove_unused_categories()
 
     # We notice that we have some additional IRIS. Make sure they will be placed randomly in there commune later.
     df_iris = context.stage("data.spatial.iris")

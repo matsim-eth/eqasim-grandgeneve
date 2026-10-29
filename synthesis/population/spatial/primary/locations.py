@@ -73,15 +73,24 @@ def define_distance_ordering(df_persons, df_candidates, progress):
 define_ordering = define_distance_ordering
 
 
-def process_municipality(context, origin_id):
+def process_municipality(context, key):
     # Load data
     df_candidates, df_persons = context.data("df_candidates"), context.data("df_persons")
+    origin_id, destination_id = key
 
-    # Find relevant records
-    df_persons = df_persons[df_persons["commune_id"] == origin_id][[
+    # Find relevant records (per home commune, or per home and work commune
+    # when the work commune is already known, see work_location_method)
+    f_persons = df_persons["commune_id"] == origin_id
+    f_candidates = df_candidates["origin_id"] == origin_id
+
+    if destination_id is not None:
+        f_persons &= df_persons["destination_id"] == destination_id
+        f_candidates &= df_candidates["destination_id"] == destination_id
+
+    df_persons = df_persons[f_persons][[
         "person_id", "home_location", "commute_distance"
     ]].copy()
-    df_candidates = df_candidates[df_candidates["origin_id"] == origin_id]
+    df_candidates = df_candidates[f_candidates]
 
     # From previous step, this should be equal!
     assert len(df_persons) == len(df_candidates)
@@ -96,13 +105,16 @@ def process_municipality(context, origin_id):
 
 
 def process(context, purpose, df_persons, df_candidates):
-    unique_ids = df_candidates["origin_id"].unique()
+    if "destination_id" in df_persons:
+        keys = df_candidates[["origin_id", "destination_id"]].drop_duplicates().itertuples(index = False, name = None)
+    else:
+        keys = ((origin_id, None) for origin_id in df_candidates["origin_id"].unique())
 
     df_result = []
 
     with context.progress(label = "Distributing %s destinations" % purpose, total = len(df_persons)) as progress:
         with context.parallel(dict(df_persons = df_persons, df_candidates = df_candidates)) as parallel:
-            for df_partial in parallel.imap_unordered(process_municipality, unique_ids):
+            for df_partial in parallel.imap_unordered(process_municipality, list(keys)):
                 df_result.append(df_partial)
 
     return pd.concat(df_result).sort_index()
@@ -255,9 +267,14 @@ def execute(context):
     data = context.stage("synthesis.population.spatial.primary.candidates")
     df_persons = data["persons"]
 
-    # Separate data set
-    df_work = df_persons[df_persons["has_work_trip"]]
-    df_education = df_persons[df_persons["has_education_trip"]]
+    # Separate data set (with work_location_method = "before_matching", the
+    # work commune is already known and locations are matched within it)
+    df_work = df_persons[df_persons["has_work_trip"]].drop(columns = ["education_destination_id"], errors = "ignore")
+    df_education = df_persons[df_persons["has_education_trip"]].drop(columns = ["work_destination_id", "education_destination_id"], errors = "ignore")
+
+    if "work_destination_id" in df_work:
+        df_work = df_work.rename(columns = { "work_destination_id": "destination_id" })
+        df_work["commune_id"] = df_work["commune_id"].astype(str)
 
     # Attach home locations
     df_home = context.stage("synthesis.population.spatial.home.locations")
@@ -290,7 +307,13 @@ def execute(context):
     # Assign destinations
     df_work = process(context, "work", df_work, df_work_candidates)
 
-    if context.config("education_location_source") == "bpe":
+    if "person_id" in df_education_candidates:
+        # education_location_method = "before_matching": one location per
+        # person, already matched with the HTS respondent by distance class
+        df_education = df_education_candidates.rename(columns = { "destination_id": "commune_id" })
+        df_education = df_education[["person_id", "commune_id", "location_id", "geometry"]].reset_index(drop = True)
+
+    elif context.config("education_location_source") == "bpe":
         df_education = process(context, "education", df_education, df_education_candidates)
 
     else :
