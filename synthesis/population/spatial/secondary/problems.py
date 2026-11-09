@@ -75,6 +75,8 @@ def find_assignment_problems(df, df_locations):
         # Define origin and destination locations if they have fixed purposes
         problem["origin"] = None
         problem["destination"] = None
+        problem["origin_purpose"] = origin_purpose if origin_purpose in FIXED_PURPOSES else None
+        problem["destination_purpose"] = destination_purpose if destination_purpose in FIXED_PURPOSES else None
 
         if origin_purpose in FIXED_PURPOSES:
             problem["origin"] = current_location[LOCATION_FIELDS.index(origin_purpose)] # Shapely POINT

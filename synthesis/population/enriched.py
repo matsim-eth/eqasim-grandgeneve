@@ -82,6 +82,11 @@ def execute(context):
         # matched HTS respondent.
         columns += ["P8"]
 
+        # Funding (free / employer / self) and network (urban, departmental
+        # coach, TER, Unireso, combined, other) of the PT subscription, "none"
+        # without one
+        columns += ["pt_subscription_funding", "pt_subscription_network"]
+
     extra_cols = context.config("extra_enriched_attributes")
 
     assert isinstance(extra_cols, list), "`extra_enriched_attributes` parameter must be a list"

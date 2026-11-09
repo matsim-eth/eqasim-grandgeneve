@@ -47,6 +47,36 @@ TRIP_COLUMNS = {
 }
 
 
+# Local questions only found in the original (non-standardized) person files:
+# P12A = network of the PT subscription held yesterday
+ORIGINAL_PERSON_COLUMNS = ["ZFP", "ECH", "PER", "P12A"]
+
+
+def attach_original_person_columns(df_persons, paths):
+    """Adds the ORIGINAL_PERSON_COLUMNS of the original person files to the
+    standard persons. The two share ZFP/ECH/PER, but the original files
+    don't zero-pad ZFP, so the keys are compared as integers."""
+    keys = ["ZFP", "ECH", "PER"]
+
+    df_original = pd.concat([
+        pd.read_csv(path, sep = ";", usecols = ORIGINAL_PERSON_COLUMNS, dtype = str)
+        for path in paths
+    ])
+    df_original = df_original.astype({ key: int for key in keys })
+    assert not df_original.duplicated(keys).any()
+
+    df_keys = df_persons[keys].astype(int)
+    df_original = pd.merge(df_keys, df_original, on = keys, how = "left", indicator = True)
+    assert (df_original["_merge"] == "both").all(), "Persons missing from the original EDGT files"
+
+    df_persons = df_persons.copy()
+    for column in ORIGINAL_PERSON_COLUMNS:
+        if not column in keys:
+            df_persons[column] = df_original[column].values
+
+    return df_persons
+
+
 def execute(context):
     data_path   = context.config("data_path")
     edgt_path   = f"{data_path}/edgt_2017/edgt_2017_annemasse/adisp"
@@ -62,6 +92,9 @@ def execute(context):
 
     df_households = pd.concat([df_households1, df_households2])
     df_persons    = pd.concat([df_persons1, df_persons2])
+    df_persons    = attach_original_person_columns(df_persons, [
+        f"{edgt_path}/{ORIGINAL_PERSON_FILES[0]}", f"{edgt_path}/{ORIGINAL_PERSON_FILES[1]}"
+    ])
     df_trips      = pd.concat([df_trips1, df_trips2])
 
     print("----------- HOUSEHOLDS -------------")
@@ -100,7 +133,12 @@ def execute(context):
     return df_households, df_persons, df_trips, df_spatial
 
 
-FILES = [
+ORIGINAL_PERSON_FILES = [
+    "lil-1212/lil-1212.csv/Csv/Fichiers_Original_Face_a_face/annemasse_2016_ori_faf_pers.csv",
+    "lil-1212/lil-1212.csv/Csv/Fichiers_Original_Telephonique/annemasse_2016_ori_tel_pers.csv",
+]
+
+FILES = ORIGINAL_PERSON_FILES + [
     "lil-1212/lil-1212.csv/Csv/Fichiers_Standard_Face_a_face/annemasse_2016_std_faf_men.csv",
     "lil-1212/lil-1212.csv/Csv/Fichiers_Standard_Telephonique/annemasse_2016_std_tel_men.csv",
     "lil-1212/lil-1212.csv/Csv/Fichiers_Standard_Face_a_face/annemasse_2016_std_faf_pers.csv",

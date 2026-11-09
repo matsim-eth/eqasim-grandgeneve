@@ -26,10 +26,10 @@ class ForceField:
         tx = (x - (self.xmin + xi * self.cell_size)) / self.cell_size
         ty = (y - (self.ymin + yi * self.cell_size)) / self.cell_size
         
-        return tx * ty * self.field[xi, yi, :] \
-            + tx * (1 - ty) * self.field[xi, yi + 1, :] \
-            + (1 - tx) * ty * self.field[xi + 1, yi, :] \
-            + (1 - tx) * (1 - ty) * self.field[xi + 1, yi + 1, :]
+        return (1 - tx) * (1 - ty) * self.field[xi, yi, :] \
+            + (1 - tx) * ty * self.field[xi, yi + 1, :] \
+            + tx * (1 - ty) * self.field[xi + 1, yi, :] \
+            + tx * ty * self.field[xi + 1, yi + 1, :]
 
 class ForceFieldChainSolver:
     def __init__(self, grid_parameters, force_fields, random, alpha = 0.3, ff_mean = 30., ff_ceiling = 60., maximum_iterations = 1000):

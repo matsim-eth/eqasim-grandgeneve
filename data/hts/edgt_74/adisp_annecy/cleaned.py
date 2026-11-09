@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import data.hts.hts as hts
+from data.hts.edgt_74.adisp_annemasse.cleaned import clean_pt_subscription
 
 """
 This stage cleans the Annemasse EDGT (Adisp version).
@@ -187,6 +188,7 @@ def execute(context):
 
     # Has subscription
     df_persons["has_pt_subscription"] = df_persons["P12"].isin(["1", "2", "3", "5", "6"])
+    clean_pt_subscription(df_persons)
 
     # Survey respondents 
     # PENQ 1 : fully awnsered the travel questionary section, having a chain or non-movers

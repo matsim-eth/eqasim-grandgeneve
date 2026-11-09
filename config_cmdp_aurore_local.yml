@@ -11,8 +11,9 @@ run:
   # - synthesis.population.cross_perimeter
   - synthesis.output
   #- synthesis.population.sampled
-  - analysis.debug.commute_flows
-  - analysis.debug.commute_flows_census
+  #- analysis.debug.commute_flows
+  #- analysis.debug.commute_flows_census
+  - analysis.cross_border_commuters.secondary_activities
   # - analysis.reference.hts.chains
   # - synthesis.population.trips_boat
   # - data.gtfs.output
@@ -44,7 +45,7 @@ config:
   # Define sampling rate for the output population #
   ##################################################
   
-  sampling_rate: 1.0
+  sampling_rate: 1
 
   #################################
   # household travel survey (HTS) #
@@ -129,6 +130,20 @@ config:
 
   ## max iterations for the secondary location selection algorithm
   # secloc_maximum_iterations: np.inf
+
+  ## Relaxation solver for secondary locations: "default" (gravity) or "force_model"
+  ## (points pulled toward dense facility areas, see synthesis.population.spatial.secondary.force_model)
+  secondary_activities.chain_solver: force_model
+
+  ## Penalty on cross-border secondary activities calibrated on EDGT74, by home
+  ## sector and Swiss destination zone (constants in
+  ## synthesis.population.spatial.secondary.border_penalty)
+  secondary_activities.border_penalty: true
+
+  ## Lakes (Lake Geneva) as barriers for non-PT secondary trips: no Thonon ->
+  ## Lausanne across the water (see synthesis.population.spatial.secondary.lakes;
+  ## lakes read from {data_path}/other_locations/CH_lakes/g1s18.shp)
+  secondary_activities.lake_barrier: true
 
   ## Buffer arround buildings to capture adresses in their vicinity
   # home_address_buffer: 5.0

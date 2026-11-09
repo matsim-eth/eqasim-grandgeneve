@@ -2,6 +2,8 @@ import pandas as pd
 import geopandas as gpd
 import os
 
+from data.hts.edgt_74.adisp_annemasse.raw import attach_original_person_columns
+
 """
 This stage loads the raw data of the specified HTS (EDGT Lyon).
 
@@ -62,6 +64,9 @@ def execute(context):
 
     df_households = pd.concat([df_households1, df_households2])
     df_persons    = pd.concat([df_persons1, df_persons2])
+    df_persons    = attach_original_person_columns(df_persons, [
+        f"{edgt_path}/{ORIGINAL_PERSON_FILES[0]}", f"{edgt_path}/{ORIGINAL_PERSON_FILES[1]}"
+    ])
     df_trips      = pd.concat([df_trips1, df_trips2])
 
     print("----------- HOUSEHOLDS -------------")
@@ -93,7 +98,12 @@ def execute(context):
     return df_households, df_persons, df_trips, df_spatial
 
 
-FILES = [
+ORIGINAL_PERSON_FILES = [
+    "lil-1315/lil-1315.csv/Csv/Annecy_2017_Original_FaF/annecy_2017_ori_faf_pers.csv",
+    "lil-1315/lil-1315.csv/Csv/Annecy_2017_Original_Tel/annecy_2017_ori_tel_pers.csv",
+]
+
+FILES = ORIGINAL_PERSON_FILES + [
     "lil-1315/lil-1315.csv/Csv/Annecy_2017_Standard_FaF/annecy_2017_std_faf_men.csv",
     "lil-1315/lil-1315.csv/Csv/Annecy_2017_Standard_Tel/annecy_2017_std_tel_men.csv",
     "lil-1315/lil-1315.csv/Csv/Annecy_2017_Standard_FaF/annecy_2017_std_faf_pers.csv",

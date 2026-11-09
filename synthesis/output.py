@@ -105,6 +105,7 @@ def execute(context):
         "has_driving_license", "has_pt_subscription",
         "census_person_id", "hts_id", "car_availability"
     ] + context.config("extra_enriched_attributes")
+    columns += [column for column in ("pt_subscription_funding", "pt_subscription_network") if column in df_persons and column not in columns]
     df_persons = df_persons[columns]
     if "csv" in output_formats:
         df_persons.to_csv("%s/%spersons.csv" % (output_path, output_prefix), sep = ";", index = None, lineterminator = "\n")

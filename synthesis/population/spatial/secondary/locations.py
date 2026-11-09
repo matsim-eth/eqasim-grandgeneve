@@ -26,6 +26,21 @@ def configure(context):
     if chain_solver == "force_model":
         context.stage("synthesis.population.spatial.secondary.force_model.force_field")
 
+    # Penalty on secondary locations in another country than the chain's
+    # fixed activities, calibrated in synthesis.population.spatial.secondary.border_penalty
+    # (see BorderPenaltyAssignmentSolver)
+    if context.config("secondary_activities.border_penalty", False):
+        assert context.config("generate_outbound_flows"), "secondary_activities.border_penalty needs generate_outbound_flows"
+        context.stage("synthesis.population.spatial.secondary.border_penalty")
+
+    # Lakes as barriers for non-PT trips (see synthesis.population.spatial.secondary.lakes)
+    if context.config("secondary_activities.lake_barrier", False):
+        context.stage("data.spatial.ch.lakes")
+
+    context.config("generate_outbound_flows")
+    if context.config("generate_outbound_flows"):
+        context.stage("data.locations_CH.secondary")
+
 def prepare_locations(context):
     # Load persons and their primary locations
     df_home = context.stage("synthesis.population.spatial.home.locations")
@@ -41,7 +56,28 @@ def prepare_locations(context):
     df_locations = pd.merge(df_locations, df_work[["person_id", "work"]], how = "left", on = "person_id")
     df_locations = pd.merge(df_locations, df_education[["person_id", "education"]], how = "left", on = "person_id")
 
-    return df_locations[["person_id", "home", "work", "education"]].sort_values(by = "person_id"), crs
+    # Country of the fixed activities, for the border penalty (homes are
+    # always in France)
+    swiss_work = set(df_work.loc[df_work["commune_id"].astype(str).str.startswith("CH"), "person_id"])
+    swiss_education = set(df_education.loc[df_education["commune_id"].astype(str).str.startswith("CH"), "person_id"])
+    df_locations["work_in_ch"] = df_locations["person_id"].isin(swiss_work)
+    df_locations["education_in_ch"] = df_locations["person_id"].isin(swiss_education)
+
+    df_locations["border_acceptance"] = 1.0
+    if context.config("secondary_activities.border_penalty"):
+        df_locations["border_acceptance"] = home_border_acceptance(context, gpd.GeoDataFrame(df_locations, geometry = "home", crs = crs))
+
+    return df_locations[["person_id", "home", "work", "education", "work_in_ch", "education_in_ch", "border_acceptance"]].sort_values(by = "person_id"), crs
+
+def home_border_acceptance(context, df_locations):
+    df_sectors, _ = context.stage("synthesis.population.spatial.secondary.border_penalty")
+
+    df_homes = df_locations[["person_id", "home"]].drop_duplicates("person_id")
+    df_homes = gpd.sjoin(df_homes, df_sectors.to_crs(df_locations.crs), how = "left", predicate = "within")
+    df_homes = df_homes.drop_duplicates("person_id").set_index("person_id")
+
+    acceptance = df_homes["border_acceptance"].fillna(1.0)
+    return df_locations["person_id"].map(acceptance).values
 
 def prepare_destinations(context):
     df_locations = context.stage("synthesis.locations.secondary")
@@ -78,6 +114,85 @@ def resample_distributions(distributions, factors):
 from synthesis.population.spatial.secondary.rda import AssignmentSolver, DiscretizationErrorObjective, GravityChainSolver, AngularTailSolver, GeneralRelaxationSolver
 from synthesis.population.spatial.secondary.components import CustomDistanceSampler, CustomDiscretizationSolver, CandidateIndex, CustomFreeChainSolver
 from synthesis.population.spatial.secondary.force_model.solver import ForceFieldChainSolver
+from synthesis.population.spatial.secondary.lakes import LakeBarrier
+
+class BorderPenaltyAssignmentSolver(AssignmentSolver):
+    """AssignmentSolver that penalizes secondary locations in another
+    country than the chain's fixed activities (e.g. home -> Geneva shop ->
+    home, but not work in Geneva -> Geneva restaurant -> work in Geneva):
+    the distance distributions don't know about the border, so without this
+    a French resident living next to it does about half of their secondary
+    activities abroad. A chain is allowed to cross the border with the
+    person's probability `border_acceptance`, times the weight of its Swiss
+    destination zone (`swiss_identifiers`, location_id -> weight).
+    Otherwise the solver keeps iterating for a solution that doesn't cross,
+    even one whose distances don't match the sampled ones, and only falls
+    back to the crossing one if all attempts cross: next to the border, many
+    chains never find a valid domestic solution and would otherwise keep the
+    crossing whatever the acceptance. Chains with a trip blocked by
+    `lake_barrier` (see synthesis.population.spatial.secondary.lakes) are
+    rejected the same way, whatever their country."""
+
+    def __init__(self, random, swiss_identifiers, anchors_in_ch, lake_barrier = None, **kwargs):
+        AssignmentSolver.__init__(self, **kwargs)
+        self.lake_barrier = lake_barrier
+        self.random = random
+        self.swiss_identifiers = swiss_identifiers
+        self.anchors_in_ch = anchors_in_ch
+
+    def crossing_weight(self, problem, discretization_result):
+        """None if the chain stays in the country of its fixed activities,
+        otherwise the lowest destination weight of its activities abroad
+        (1.0 for activities in France)."""
+        anchors_in_ch = self.anchors_in_ch[problem["person_id"]]
+        countries = set(
+            anchors_in_ch[purpose] for purpose in (problem["origin_purpose"], problem["destination_purpose"])
+            if purpose is not None
+        ) or { False } # free chains: residents of France
+
+        weights = [
+            self.swiss_identifiers.get(identifier, 1.0) for identifier in discretization_result["identifiers"]
+            if (identifier in self.swiss_identifiers) not in countries
+        ]
+
+        return min(weights) if len(weights) > 0 else None
+
+    def solve(self, problem):
+        best_result, best_key = None, None
+        # Drawn once per chain, not per attempt: otherwise a crossing gets
+        # accepted on one of the attempts and ends the loop most of the time.
+        acceptance = self.anchors_in_ch[problem["person_id"]]["border_acceptance"]
+        draw = self.random.random()
+
+        for assignment_iteration in range(self.maximum_iterations):
+            distance_result = self.distance_sampler.sample(problem)
+
+            relaxation_result = self.relaxation_solver.solve(problem, distance_result["distances"])
+            discretization_result = self.discretization_solver.solve(problem, relaxation_result["locations"])
+
+            assignment_result = self.objective.evaluate(problem, distance_result, relaxation_result, discretization_result)
+
+            weight = self.crossing_weight(problem, discretization_result)
+            rejected = weight is not None and draw >= acceptance * weight
+
+            # Chains going around a lake (Lake Geneva) are rejected the same way
+            if not rejected and self.lake_barrier is not None:
+                rejected = self.lake_barrier.blocks_chain(problem, discretization_result["locations"])
+            key = (rejected, not assignment_result["valid"], assignment_result["objective"])
+
+            if best_result is None or key < best_key:
+                best_result, best_key = assignment_result, key
+
+                assignment_result["distance"] = distance_result
+                assignment_result["relaxation"] = relaxation_result
+                assignment_result["discretization"] = discretization_result
+                assignment_result["iterations"] = assignment_iteration
+                rejected_best = rejected
+
+            if best_result["valid"] and not rejected_best:
+                break
+
+        return best_result
 
 # Sentinel location_id for a discretized secondary activity whose geometry
 # was forced onto a fixed (home/work/education) anchor by a "_loop" mode
@@ -171,6 +286,15 @@ def execute(context):
     distance_distributions = context.stage("synthesis.population.spatial.secondary.distance_distributions")
     destinations = prepare_destinations(context)
 
+    swiss_identifiers = {}
+    if context.config("secondary_activities.border_penalty"):
+        _, df_swiss = context.stage("synthesis.population.spatial.secondary.border_penalty")
+        swiss_identifiers = dict(zip(df_swiss["location_id"], df_swiss["weight"]))
+
+    lake_polygons = None
+    if context.config("secondary_activities.lake_barrier"):
+        lake_polygons = list(context.stage("data.spatial.ch.lakes").to_crs(crs)["geometry"])
+
     # Optional data for force model
     force_field_data = None
     if context.config("secondary_activities.chain_solver") == "force_model":
@@ -210,7 +334,9 @@ def execute(context):
         with context.parallel(processes = processes, data = dict(
             distance_distributions = distance_distributions,
             destinations = destinations,
-            force_field_data = force_field_data
+            force_field_data = force_field_data,
+            swiss_identifiers = swiss_identifiers,
+            lake_polygons = lake_polygons
         )) as parallel:
             df_locations, df_convergence = [], []
 
@@ -270,13 +396,29 @@ def process(context, arguments):
   })
 
   assignment_objective = DiscretizationErrorObjective(thresholds = thresholds)
-  assignment_solver = AssignmentSolver(
+  solver_arguments = dict(
       distance_sampler = distance_sampler,
       relaxation_solver = relaxation_solver,
       discretization_solver = discretization_solver,
       objective = assignment_objective,
       maximum_iterations = min(20, maximum_iterations)
       )
+
+  lake_polygons = context.data("lake_polygons")
+
+  if context.config("secondary_activities.border_penalty") or lake_polygons is not None:
+    anchors_in_ch = {
+      person_id: dict(home = False, work = work_in_ch, education = education_in_ch, border_acceptance = border_acceptance)
+      for person_id, work_in_ch, education_in_ch, border_acceptance
+      in df_primary[["person_id", "work_in_ch", "education_in_ch", "border_acceptance"]].itertuples(index = False)
+    }
+    assignment_solver = BorderPenaltyAssignmentSolver(
+      random = random,
+      swiss_identifiers = context.data("swiss_identifiers"), anchors_in_ch = anchors_in_ch,
+      lake_barrier = None if lake_polygons is None else LakeBarrier(lake_polygons),
+      **solver_arguments)
+  else:
+    assignment_solver = AssignmentSolver(**solver_arguments)
 
   df_locations = []
   df_convergence = []

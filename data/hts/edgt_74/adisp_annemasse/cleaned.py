@@ -12,6 +12,31 @@ def configure(context):
     context.config("specific_day_scenario", "workday")
 
 
+# P12 (standard and original files): who pays the subscription
+PT_SUBSCRIPTION_FUNDING_MAP = { "1": "free", "2": "employer", "3": "self" }
+
+# P12A (original files only): network of the subscription. Same codes in the
+# Annemasse and Annecy surveys; "urban" is an urban network of the respective
+# survey perimeter (TAC, Gem'Bus, BUT, ... for Annemasse; SIBRA, Chamonix bus
+# for Annecy).
+PT_SUBSCRIPTION_NETWORK_MAP = {
+    "1": "urban", "2": "departmental_coach", "3": "ter",
+    "4": "unireso", "5": "combined", "6": "other"
+}
+
+
+def clean_pt_subscription(df_persons):
+    """Funding and network of the PT subscription, "none" for persons
+    without one."""
+    for column, source, values in (
+        ("pt_subscription_funding", "P12", PT_SUBSCRIPTION_FUNDING_MAP),
+        ("pt_subscription_network", "P12A", PT_SUBSCRIPTION_NETWORK_MAP)
+    ):
+        df_persons[column] = df_persons[source].map(values).where(df_persons["has_pt_subscription"], "none")
+        assert not df_persons[column].isna().any(), "Unknown %s codes for PT subscribers" % source
+        df_persons[column] = pd.Categorical(df_persons[column], categories = ["none"] + list(values.values()))
+
+
 PURPOSE_MAP = {
     "home": [1, 2],
     "work": [11, 12, 13, 14, 81],
@@ -183,6 +208,7 @@ def execute(context):
 
     # Has subscription
     df_persons["has_pt_subscription"] = df_persons["P12"].isin(["1", "2", "3", "5", "6"])
+    clean_pt_subscription(df_persons)
 
     # Survey respondents 
     # PENQ 1 : fully awnsered the travel questionary section, having a chain or non-movers
